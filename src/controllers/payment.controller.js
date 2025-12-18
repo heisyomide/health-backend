@@ -2,7 +2,9 @@
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/errorResponse');
 const { initiatePayment, verifyPayment } = require('../utils/flutterwave');
-
+// Ensure you import sendEmail at the top of your payment.controller.js
+const sendEmail = require('../utils/sendEmail');
+const User = require('../models/User'); // Needed to find patient email
 const Appointment = require('../models/Appointment');
 const Payment = require('../models/Payment');
 const Wallet = require('../models/Wallet');
@@ -92,6 +94,8 @@ exports.initiateAppointmentPayment = asyncHandler(async (req, res, next) => {
     });
 });
 
+
+
 // @desc    Handle Flutterwave Webhook/Callback - **CRITICAL**
 // @route   POST /api/v1/payments/webhook
 // @access  Public (External Webhook)
@@ -114,7 +118,7 @@ exports.handleWebhook = asyncHandler(async (req, res, next) => {
 
     const { id: flwTransactionId, tx_ref, amount, app_fee: flutterwaveFee } = payload.data;
     
-    // 3. Verify Transaction (Crucial for security)
+    // 3. Verify Transaction
     const verifiedData = await verifyPayment(flwTransactionId);
     
     // Check for duplicate processing
@@ -126,21 +130,20 @@ exports.handleWebhook = asyncHandler(async (req, res, next) => {
     
     // 4. Calculate Split & Escrow Setup
     const appointmentId = tx_ref.split('-')[1]; 
-    const appointment = await Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId).populate('patient'); // Populate to get patient details
 
     if (!appointment) {
          console.error(`Webhook error: Appointment not found for TX ref: ${tx_ref}`);
          return res.status(200).send("Appointment not found.");
     }
     
-    // Calculate shares based on the gross amount received
     const platformFee = amount * COMMISSION_RATE;
     const practitionerShare = amount - platformFee; 
     
-    // 5. Create Payment Record (Escrow status: 'held')
+    // 5. Create Payment Record
     const payment = await Payment.create({
         appointment: appointmentId,
-        patient: appointment.patient,
+        patient: appointment.patient._id,
         practitioner: appointment.practitioner,
         flwTransactionId: flwTransactionId,
         flwReference: tx_ref,
@@ -148,21 +151,27 @@ exports.handleWebhook = asyncHandler(async (req, res, next) => {
         flutterwaveFee: flutterwaveFee || 0,
         platformFee: platformFee,
         practitionerShare: practitionerShare,
-        status: 'held', // Money is now in escrow
+        status: 'held',
     });
 
-    // 6. Update Practitioner Wallet (Pending Balance)
+    // 6. Update Practitioner Wallet
     await Wallet.findOneAndUpdate(
         { practitioner: appointment.practitioner },
-        { 
-            $inc: { pendingBalance: practitionerShare } // Add to pending
-        },
-        { upsert: true, new: true } // Create wallet if it doesn't exist
+        { $inc: { pendingBalance: practitionerShare } },
+        { upsert: true, new: true }
     );
 
-    // 7. Update Appointment Status (If booking requires immediate confirmation upon payment)
-    // appointment.status = 'Confirmed';
-    // await appointment.save(); 
+    // 7. NEW: Send Email Notification to Patient
+    try {
+        await sendEmail({
+            email: appointment.patient.email, // Fetched via .populate('patient') above
+            subject: 'Payment Confirmed - HealthMe',
+            message: `Hi ${appointment.patient.firstName}, your payment of ₦${amount.toLocaleString()} for Appointment #${appointmentId} was successful. The funds are being held in escrow until the service is completed.`,
+        });
+    } catch (err) {
+        console.error(`Email failed to send to ${appointment.patient.email}:`, err.message);
+        // We don't return an error to Flutterwave just because the email failed
+    }
 
     res.status(200).send("Webhook successfully processed, funds held in escrow.");
 });

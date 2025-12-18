@@ -17,7 +17,9 @@ const PractitionerProfileSchema = new mongoose.Schema({
     },
     specialization: { // Phase 1.2
         type: String,
-        required: true
+        required: true,
+         enum: ['General Practice', 'Pediatrics', 'Cardiology', 'Mental Health', 'Other']
+
     },
     licenseNumber: { // Phase 4.2 (KYC)
         type: String,

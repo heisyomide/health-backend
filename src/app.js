@@ -4,6 +4,10 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const cors = require('cors'); // Essential for frontend/backend communication
 const dotenv = require('dotenv');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const hpp = require('hpp');
+const rateLimit = require('express-rate-limit');
 
 // Load environment variables (Make sure this is done before importing files that rely on it)
 dotenv.config({ path: './.env' });
@@ -30,6 +34,30 @@ const app = express();
 
 // Body parser: Allows us to read JSON data from the request body
 app.use(express.json());
+
+// Import security packages
+
+
+
+
+// 2. Prevent NoSQL Injection (sanitizes $ and . from inputs)
+app.use(mongoSanitize());
+
+// 3. Prevent XSS (sanitizes HTML/Scripts in inputs)
+app.use(xss());
+
+// 4. Prevent Parameter Pollution
+app.use(hpp());
+
+// 5. Rate Limiting (100 requests per 10 minutes)
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 mins
+  max: 100,
+  message: 'Too many requests from this IP, please try again after 10 minutes'
+});
+app.use('/api/', limiter); // Apply to all API routes
+
+// ... rest of your app.use routes
 
 // Cookie parser: Allows us to read cookies for JWT handling
 app.use(cookieParser());
