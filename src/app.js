@@ -4,8 +4,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const cors = require('cors'); // Essential for frontend/backend communication
 const dotenv = require('dotenv');
-const mongoSanitize = require('express-mongo-sanitize');
-const xss = require('xss-clean');
+const mongoSanitize = require('express-mongo-sanitize')
 const hpp = require('hpp');
 const rateLimit = require('express-rate-limit');
 
@@ -44,7 +43,6 @@ app.use(express.json());
 app.use(mongoSanitize());
 
 // 3. Prevent XSS (sanitizes HTML/Scripts in inputs)
-app.use(xss());
 
 // 4. Prevent Parameter Pollution
 app.use(hpp());
