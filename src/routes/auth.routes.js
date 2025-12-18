@@ -1,33 +1,27 @@
 // src/routes/auth.routes.js
 const express = require('express');
-const { protect, authorize } = require('../middlewares/auth.middleware');
-const { 
-    register, 
-    login, 
-    logout, 
-    getMe, 
-    updatePassword 
-} = require('../controllers/auth.controller');
+const { protect } = require('../middlewares/auth.middleware');
+const authController = require('../controllers/auth.controller');
+
+// DEBUG: Log the imported controller to see what's missing
+console.log('--- AUTH CONTROLLER DEBUG ---');
+console.log('Register:', typeof authController.register);
+console.log('Login:', typeof authController.login);
+console.log('Logout:', typeof authController.logout);
+console.log('GetMe:', typeof authController.getMe);
+console.log('UpdatePassword:', typeof authController.updatePassword);
+console.log('-----------------------------');
 
 const router = express.Router();
 
-router.post('/signup', register);
-router.post('/login', login);
-router.get('/logout', logout);
+// Destructure AFTER logging so we can see the issue
+const { register, login, logout, getMe, updatePassword } = authController;
 
-// --- Phase 0.1 & 0.2 Deliverables ---
-
-// Fetch self (/auth/me) - Must be protected, and requires the user to be logged in (patient or practitioner or admin)
-router.get('/me', protect, getMe); 
-
-// Update password - Protected
-router.put('/updatepassword', protect, updatePassword);
-
-// Example of future RBAC-controlled route (e.g., Phase 1.1)
-// Only users with the 'patient' role can access this route
-// router.get('/patient/dashboard', protect, authorize('patient'), patientController.getDashboardData);
-
-// Example for Phase 5 (Admin Platform)
-// router.get('/admin/users', protect, authorize('admin'), adminController.getAllUsers);
+// Only mount the routes if the functions exist to prevent the crash
+if (register) router.post('/signup', register);
+if (login) router.post('/login', login);
+if (logout) router.get('/logout', logout);
+if (getMe) router.get('/me', protect, getMe); 
+if (updatePassword) router.put('/updatepassword', protect, updatePassword);
 
 module.exports = router;

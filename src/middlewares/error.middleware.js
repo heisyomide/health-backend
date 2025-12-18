@@ -1,12 +1,15 @@
-// src/middlewares/error.middleware.js (CORRECT IMPLEMENTATION)
+// src/middlewares/error.middleware.js
 const ErrorResponse = require('../utils/errorResponse');
 
 const errorHandler = (err, req, res, next) => {
-    let error = { ...err }; // Copy the error object
-    error.message = err.message;
+    // 1. Create a simplified error object instead of spreading the whole 'err'
+    let error = {
+        statusCode: err.statusCode,
+        message: err.message
+    };
 
-    // Log to console for dev
-    console.log(err.stack.red); 
+    // Log to console for dev (using standard console.log if 'colors' isn't installed)
+    console.error(`Error Stack: ${err.stack}`); 
 
     // Mongoose Bad ObjectId (CastError)
     if (err.name === 'CastError') {
@@ -26,10 +29,11 @@ const errorHandler = (err, req, res, next) => {
         error = new ErrorResponse(message.join(', '), 400);
     }
 
+    // 2. IMPORTANT: Use the original 'err' if 'error' wasn't reassigned to a new ErrorResponse
     res.status(error.statusCode || 500).json({
         success: false,
         error: error.message || 'Server Error'
     });
 };
 
-module.exports = errorHandler; // <-- MUST use default export
+module.exports = errorHandler;
