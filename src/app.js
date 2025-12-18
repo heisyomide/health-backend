@@ -1,4 +1,3 @@
-// src/app.js
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
@@ -8,14 +7,11 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const rateLimit = require('express-rate-limit');
 
-// Load environment variables
 dotenv.config({ path: './.env' });
 
-// Middlewares
 const errorHandler = require('./middlewares/error.middleware'); 
 const ErrorResponse = require('./utils/errorResponse'); 
 
-// Route Files
 const authRoutes = require('./routes/auth.routes');
 const patientRoutes = require('./routes/patient.routes');
 const paymentRoutes = require('./routes/payment.routes');
@@ -27,40 +23,50 @@ const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 
-// --- 1. PRIORITY MIDDLEWARE (The Order Matters!) ---
+// --- DEBUG LOGGER ---
+app.use((req, res, next) => {
+    console.log(`>>> Incoming Request: ${req.method} ${req.url}`);
+    next();
+});
 
-// Body parser MUST be first
+// 1. Body Parser
+console.log('DEBUG: Setting up JSON Body Parser...');
 app.use(express.json());
 app.use(cookieParser());
+console.log('DEBUG: Body Parser SUCCESS');
 
-// CORS - Open for all during development, or set specific origin
-app.use(cors({
-    origin: '*', // For now, set to '*' so your frontend can connect easily
-    credentials: true
-}));
+// 2. CORS
+console.log('DEBUG: Setting up CORS...');
+app.use(cors({ origin: '*', credentials: true }));
+console.log('DEBUG: CORS SUCCESS');
 
-// Security Headers
+// 3. Helmet (Security Headers)
+console.log('DEBUG: Setting up Helmet...');
 app.use(helmet());
+console.log('DEBUG: Helmet SUCCESS');
 
-// --- 2. SECURITY SANITIZATION ---
+// 4. Mongo Sanitize (NoSQL Injection)
+console.log('DEBUG: Setting up MongoSanitize...');
+app.use(mongoSanitize({ replaceWith: '_' }));
+console.log('DEBUG: MongoSanitize SUCCESS');
 
-// Prevent NoSQL Injection - Added replaceWith to prevent the "getter" error
-app.use(mongoSanitize({
-    replaceWith: '_'
-}));
-
-// Prevent Parameter Pollution
+// 5. HPP (Parameter Pollution)
+console.log('DEBUG: Setting up HPP...');
 app.use(hpp());
+console.log('DEBUG: HPP SUCCESS');
 
-// Rate Limiting
+// 6. Rate Limiting
+console.log('DEBUG: Setting up Rate Limiter...');
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, 
   max: 100,
-  message: 'Too many requests from this IP, please try again after 10 minutes'
+  message: 'Too many requests'
 });
 app.use('/api/', limiter);
+console.log('DEBUG: Rate Limiter SUCCESS');
 
-// --- 3. ROUTE MOUNTING ---
+// --- ROUTES ---
+console.log('DEBUG: Mounting Routes...');
 
 app.get('/api/v1/health', (req, res) => {
     res.status(200).json({ success: true, message: 'API is live' });
@@ -75,7 +81,7 @@ app.use('/api/v1/metrics', metricRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
-// --- 4. ERROR HANDLING ---
+console.log('DEBUG: Routes MOUNTED SUCCESS');
 
 app.use((req, res, next) => {
     next(new ErrorResponse(`Can't find ${req.originalUrl} on this server!`, 404));
