@@ -7,11 +7,14 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const rateLimit = require('express-rate-limit');
 
+// Load environment variables
 dotenv.config({ path: './.env' });
 
+// Middleware & Utilities
 const errorHandler = require('./middlewares/error.middleware'); 
 const ErrorResponse = require('./utils/errorResponse'); 
 
+// Route Files
 const authRoutes = require('./routes/auth.routes');
 const patientRoutes = require('./routes/patient.routes');
 const paymentRoutes = require('./routes/payment.routes');
@@ -23,55 +26,59 @@ const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 
-// --- DEBUG LOGGER ---
+// --- 1. GLOBAL SETTINGS & REQUEST LOGGING ---
 app.use((req, res, next) => {
-    console.log(`>>> Incoming Request: ${req.method} ${req.url}`);
+    // FIX: Manually redefine req.query as writable to prevent Node 22+ getter errors
+    Object.defineProperty(req, 'query', {
+        value: req.query,
+        writable: true,
+        enumerable: true,
+        configurable: true
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`>>> ${req.method} ${req.url}`);
+    }
     next();
 });
 
-// 1. Body Parser
-console.log('DEBUG: Setting up JSON Body Parser...');
+// --- 2. SECURITY & BODY PARSING ---
+
+// Body parser (Must be before sanitization)
 app.use(express.json());
 app.use(cookieParser());
-console.log('DEBUG: Body Parser SUCCESS');
 
-// 2. CORS
-console.log('DEBUG: Setting up CORS...');
-app.use(cors({ origin: '*', credentials: true }));
-console.log('DEBUG: CORS SUCCESS');
+// Enable CORS
+app.use(cors({ 
+    origin: '*', // Adjust this to your specific frontend URL in production
+    credentials: true 
+}));
 
-// 3. Helmet (Security Headers)
-console.log('DEBUG: Setting up Helmet...');
+// Set security HTTP headers
 app.use(helmet());
-console.log('DEBUG: Helmet SUCCESS');
 
-// 4. Mongo Sanitize (NoSQL Injection)
-console.log('DEBUG: Setting up MongoSanitize...');
+// Data sanitization against NoSQL query injection
 app.use(mongoSanitize({ replaceWith: '_' }));
-console.log('DEBUG: MongoSanitize SUCCESS');
 
-// 5. HPP (Parameter Pollution)
-console.log('DEBUG: Setting up HPP...');
+// Prevent parameter pollution
 app.use(hpp());
-console.log('DEBUG: HPP SUCCESS');
 
-// 6. Rate Limiting
-console.log('DEBUG: Setting up Rate Limiter...');
+// Rate limiting (100 requests per 10 minutes)
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, 
   max: 100,
-  message: 'Too many requests'
+  message: 'Too many requests from this IP, please try again after 10 minutes'
 });
 app.use('/api/', limiter);
-console.log('DEBUG: Rate Limiter SUCCESS');
 
-// --- ROUTES ---
-console.log('DEBUG: Mounting Routes...');
+// --- 3. ROUTES ---
 
+// Health Check
 app.get('/api/v1/health', (req, res) => {
-    res.status(200).json({ success: true, message: 'API is live' });
+    res.status(200).json({ success: true, message: 'API is live and stable' });
 });
 
+// Mount Routers
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/patients', patientRoutes);
 app.use('/api/v1/appointments', appointmentRoutes);
@@ -81,12 +88,14 @@ app.use('/api/v1/metrics', metricRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
-console.log('DEBUG: Routes MOUNTED SUCCESS');
+// --- 4. ERROR HANDLING ---
 
+// Catch 404
 app.use((req, res, next) => {
-    next(new ErrorResponse(`Can't find ${req.originalUrl} on this server!`, 404));
+    next(new ErrorResponse(`Route ${req.originalUrl} not found`, 404));
 });
 
+// Global Error Handler
 app.use(errorHandler);
 
 module.exports = app;
