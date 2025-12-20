@@ -72,4 +72,16 @@ exports.authorize = (...roles) => (req, res, next) => {
     }
     next();
 };
+// Add or verify this export:
+exports.admin = (req, res, next) => {
+    // Check if user exists (from protect) and has admin role
+    if (req.user && req.user.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ 
+            success: false, 
+            message: "Not authorized as an admin" 
+        });
+    }
+};
 // This allows us to use: authorize('admin')

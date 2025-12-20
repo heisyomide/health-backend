@@ -1,31 +1,41 @@
-// src/routes/admin.routes.js
 const express = require('express');
-const { protect, authorize } = require('../middlewares/auth.middleware');
+const router = express.Router();
+
+// Import Middleware
+const { protect, admin, authorize } = require('../middlewares/auth.middleware');
+
+// Import Controller Functions
 const { 
     getPractitioners,
     verifyPractitioner,
     getPendingPayouts,
-    processPayout
+    processPayout,
+    getAdminStats,
 } = require('../controllers/admin.controller');
 
-const router = express.Router();
-
-// Apply protection and authorization (admin only) to all admin routes
+// Apply protection to all routes below this line
 router.use(protect);
-router.use(authorize('admin')); 
 
-// --- Practitioner Verification (KYP) ---
+// Use 'admin' or 'authorize' depending on how your middleware is named
+// Usually 'admin' middleware checks if req.user.role === 'admin'
+router.use(admin || authorize('admin')); 
+
+// --- Dashboard Statistics ---
+// Route: GET /api/v1/admin/stats
+router.get('/stats', getAdminStats);
+
+// --- Practitioner Verification ---
 router.route('/practitioners')
-    .get(getPractitioners); // List all practitioners
+    .get(getPractitioners);
 
 router.route('/practitioners/:userId/verify')
-    .put(verifyPractitioner); // Approve/Reject profile and licenses
+    .put(verifyPractitioner);
 
 // --- Payout Management ---
 router.route('/payouts/pending')
-    .get(getPendingPayouts); // List requested payouts
+    .get(getPendingPayouts);
 
 router.route('/payouts/:payoutId/process')
-    .put(processPayout); // Process/Mark status of a single payout
+    .put(processPayout);
 
 module.exports = router;
