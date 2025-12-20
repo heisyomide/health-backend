@@ -49,11 +49,11 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Enable CORS
-app.use(cors({ 
-    origin: '*', // Adjust this to your specific frontend URL in production
-    credentials: true 
-}));
 
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://your-vercel-link.com'], // Add your links
+  credentials: true
+}));
 // Set security HTTP headers
 app.use(helmet());
 
