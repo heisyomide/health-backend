@@ -2,42 +2,34 @@ const express = require('express');
 const router = express.Router();
 
 // Import Middleware
-const { protect, admin, authorize } = require('../middlewares/auth.middleware');
+// NOTE: Using 'admin' as the role checker based on your controller needs
+const { protect, admin } = require('../middlewares/auth.middleware');
 
 // Import Controller Functions
 const { 
+    getAdminStats,
+    getAllUsers,
     getPractitioners,
     verifyPractitioner,
     getPendingPayouts,
-    processPayout,
-    getAdminStats,
+    processPayout
 } = require('../controllers/admin.controller');
 
-// Apply protection to all routes below this line
+// --- Global Protection ---
+// All routes below this line require a valid token and Admin role
 router.use(protect);
+router.use(admin); 
 
-// Use 'admin' or 'authorize' depending on how your middleware is named
-// Usually 'admin' middleware checks if req.user.role === 'admin'
-router.use(admin || authorize('admin')); 
-
-// --- Dashboard Statistics ---
-// Route: GET /api/v1/admin/stats
+// --- Unified Dashboard Routes ---
 router.get('/stats', getAdminStats);
-// Ensure this exists!
-router.get("/users", protect, adminOnly, getAllUsersController);
+router.get('/users', getAllUsers);
 
-// --- Practitioner Verification ---
-router.route('/practitioners')
-    .get(getPractitioners);
-
-router.route('/practitioners/:userId/verify')
-    .put(verifyPractitioner);
+// --- Practitioner Management ---
+router.get('/practitioners', getPractitioners);
+router.put('/practitioners/:userId/verify', verifyPractitioner);
 
 // --- Payout Management ---
-router.route('/payouts/pending')
-    .get(getPendingPayouts);
-
-router.route('/payouts/:payoutId/process')
-    .put(processPayout);
+router.get('/payouts/pending', getPendingPayouts);
+router.put('/payouts/:payoutId/process', processPayout);
 
 module.exports = router;
