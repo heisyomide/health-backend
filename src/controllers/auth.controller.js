@@ -47,41 +47,39 @@ const sendTokenResponse = (user, statusCode, res) => {
 exports.register = asyncHandler(async (req, res, next) => {
   const { email, password, fullName, role } = req.body;
 
-  // 1. Split fullName safely
-  const nameParts = fullName ? fullName.trim().split(" ") : ["User"];
+  // 1. Safety Check
+  if (!email || !password || !fullName) {
+    return next(new ErrorResponse("Please provide email, password, and name", 400));
+  }
+
+  // 2. Split Name for the Profile Models
+  const nameParts = fullName.trim().split(" ");
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-  // 2. Create the User
+  // 3. Create User
   const user = await User.create({
     email,
     password,
     role: role || "patient",
   });
 
+  // 4. Create Profile
   let profile;
-
-  // 3. Create Profiles with split names
   if (user.role === "patient") {
-    profile = await PatientProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-    });
-  } else if (user.role === "practitioner") {
-    profile = await PractitionerProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-      specialization: req.body.specialization || "General",
+    profile = await PatientProfile.create({ user: user._id, firstName, lastName });
+  } else {
+    profile = await PractitionerProfile.create({ 
+        user: user._id, 
+        firstName, 
+        lastName,
+        specialization: "General" 
     });
   }
 
-  // 4. Link and Save
-  if (profile) {
-    user.profile = profile._id;
-    await user.save({ validateBeforeSave: false });
-  }
+  // 5. Link Profile
+  user.profile = profile._id;
+  await user.save({ validateBeforeSave: false });
 
   sendTokenResponse(user, 201, res);
 });
