@@ -46,56 +46,38 @@ const sendTokenResponse = (user, statusCode, res) => {
  * =====================================================
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, fullName, role = "patient" } = req.body;
+  const { email, password, fullName, role } = req.body;
 
-  // 1. Validate input
   if (!email || !password || !fullName) {
-    return next(
-      new ErrorResponse("Email, password, and full name are required", 400)
-    );
+    return next(new ErrorResponse("Please provide email, password, and name", 400));
   }
 
-  // 2. Prevent duplicate accounts
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return next(new ErrorResponse("Email already registered", 409));
-  }
+  // Split fullName into parts safely
+  const nameParts = fullName.trim().split(" ");
+  const firstName = nameParts[0];
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-  // 3. Normalize name
-  const { firstName, lastName } = normalizeFullName(fullName);
-
-  // 4. Create user
+  // Create the User
   const user = await User.create({
     email,
     password,
-    role,
+    role: role || "patient",
   });
 
-  // 5. Create profile
+  // Create the Profile based on role
   let profile;
-if (role === "patient") {
-  profile = await PatientProfile.create({
-    user: user._id,
-    firstName,
-    lastName,
-    age: req.body.age,
-    gender: req.body.gender,
-    phone: req.body.phone,
-    country: req.body.country,
-    reasonForJoining: req.body.reasonForJoining,
-  });
-} else if (role === "practitioner") {
-    profile = await PractitionerProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-      specialization: "General",
-    });
+  if (user.role === "patient") {
+    profile = await PatientProfile.create({ user: user._id, firstName, lastName });
   } else {
-    return next(new ErrorResponse("Invalid role supplied", 400));
+    profile = await PractitionerProfile.create({ 
+      user: user._id, 
+      firstName, 
+      lastName, 
+      specialization: "General" 
+    });
   }
 
-  // 6. Link profile
+  // Link profile to user
   user.profile = profile._id;
   await user.save({ validateBeforeSave: false });
 
