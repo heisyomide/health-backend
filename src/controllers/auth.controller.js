@@ -1,33 +1,35 @@
-// src/controllers/auth.controller.js
-
 const asyncHandler = require("../utils/asyncHandler");
 const ErrorResponse = require("../utils/errorResponse");
 const { getSignedJwtToken } = require("../utils/jwt");
 
-// Models
 const User = require("../models/User");
 const PatientProfile = require("../models/PatientProfile");
 const PractitionerProfile = require("../models/PractitionerProfile");
 
 /**
  * =====================================================
- * COOKIE HELPER
+ * HELPERS
  * =====================================================
  */
+const normalizeFullName = (fullName = "") => {
+  const parts = fullName.trim().split(/\s+/);
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" ") || "",
+  };
+};
+
 const sendTokenResponse = (user, statusCode, res) => {
   const token = getSignedJwtToken(user);
 
-  const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge:
-      Number(process.env.JWT_COOKIE_EXPIRE) * 24 * 60 * 60 * 1000,
-  };
-
   res
     .status(statusCode)
-    .cookie("token", token, cookieOptions)
+    .cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: Number(process.env.JWT_COOKIE_EXPIRE) * 24 * 60 * 60 * 1000,
+    })
     .json({
       success: true,
       user: {
@@ -43,47 +45,57 @@ const sendTokenResponse = (user, statusCode, res) => {
  * REGISTER
  * =====================================================
  */
-// src/controllers/auth.controller.js - REGISTER REFACTOR
 exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, fullName, role } = req.body;
+  const { email, password, fullName, role = "patient" } = req.body;
 
-  // 1. Safety Check
+  // 1. Validate input
   if (!email || !password || !fullName) {
-    return next(new ErrorResponse("Please provide email, password, and name", 400));
+    return next(
+      new ErrorResponse("Email, password, and full name are required", 400)
+    );
   }
 
-  // 2. Split Name for the Profile Models
-  const nameParts = fullName.trim().split(" ");
-  const firstName = nameParts[0];
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  // 2. Prevent duplicate accounts
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return next(new ErrorResponse("Email already registered", 409));
+  }
 
-  // 3. Create User
+  // 3. Normalize name
+  const { firstName, lastName } = normalizeFullName(fullName);
+
+  // 4. Create user
   const user = await User.create({
     email,
     password,
-    role: role || "patient",
+    role,
   });
 
-  // 4. Create Profile
+  // 5. Create profile
   let profile;
-  if (user.role === "patient") {
-    profile = await PatientProfile.create({ user: user._id, firstName, lastName });
-  } else {
-    profile = await PractitionerProfile.create({ 
-        user: user._id, 
-        firstName, 
-        lastName,
-        specialization: "General" 
+  if (role === "patient") {
+    profile = await PatientProfile.create({
+      user: user._id,
+      firstName,
+      lastName,
     });
+  } else if (role === "practitioner") {
+    profile = await PractitionerProfile.create({
+      user: user._id,
+      firstName,
+      lastName,
+      specialization: "General",
+    });
+  } else {
+    return next(new ErrorResponse("Invalid role supplied", 400));
   }
 
-  // 5. Link Profile
+  // 6. Link profile
   user.profile = profile._id;
   await user.save({ validateBeforeSave: false });
 
   sendTokenResponse(user, 201, res);
 });
-
 /**
  * =====================================================
  * LOGIN
