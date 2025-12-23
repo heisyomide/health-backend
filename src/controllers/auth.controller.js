@@ -46,7 +46,7 @@ const sendTokenResponse = (user, statusCode, res) => {
  * =====================================================
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, fullName, role } = req.body;
+  const { email, password, name: fullname , accountType: role } = req.body;
 
   if (!email || !password || !fullName) {
     return next(new ErrorResponse("Please provide email, password, and name", 400));
