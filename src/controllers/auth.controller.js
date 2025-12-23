@@ -45,19 +45,14 @@ const sendTokenResponse = (user, statusCode, res) => {
  */
 // src/controllers/auth.controller.js - REGISTER REFACTOR
 exports.register = asyncHandler(async (req, res, next) => {
-  // 1. Destructure what the frontend is actually sending
   const { email, password, fullName, role } = req.body;
 
-  if (!email || !password || !fullName) {
-    return next(new ErrorResponse("Please provide email, password, and full name", 400));
-  }
-
-  // Split fullName into firstName and lastName for your profile models
-  const nameParts = fullName.trim().split(" ");
+  // 1. Split fullName safely
+  const nameParts = fullName ? fullName.trim().split(" ") : ["User"];
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-  // 2. Create User
+  // 2. Create the User
   const user = await User.create({
     email,
     password,
@@ -66,7 +61,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   let profile;
 
-  // 3. Create Profile based on Role
+  // 3. Create Profiles with split names
   if (user.role === "patient") {
     profile = await PatientProfile.create({
       user: user._id,
@@ -82,7 +77,7 @@ exports.register = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // 4. Link profile to user
+  // 4. Link and Save
   if (profile) {
     user.profile = profile._id;
     await user.save({ validateBeforeSave: false });
