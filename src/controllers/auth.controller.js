@@ -73,13 +73,18 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   // 5. Create profile
   let profile;
-  if (role === "patient") {
-    profile = await PatientProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-    });
-  } else if (role === "practitioner") {
+if (role === "patient") {
+  profile = await PatientProfile.create({
+    user: user._id,
+    firstName,
+    lastName,
+    age: req.body.age,
+    gender: req.body.gender,
+    phone: req.body.phone,
+    country: req.body.country,
+    reasonForJoining: req.body.reasonForJoining,
+  });
+} else if (role === "practitioner") {
     profile = await PractitionerProfile.create({
       user: user._id,
       firstName,
