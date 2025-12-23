@@ -91,6 +91,19 @@ exports.verifyPractitioner = asyncHandler(async (req, res, next) => {
     });
 });
 
+// Example Controller
+export const getAllUsersController = async (req, res) => {
+  try {
+    const users = await User.find({}).select("-password").sort("-createdAt");
+    res.status(200).json({
+      success: true,
+      users // This must match usersRes.data.users in the frontend
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // --- Payout Management ---
 
 exports.getPendingPayouts = asyncHandler(async (req, res, next) => {

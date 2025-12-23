@@ -23,6 +23,8 @@ router.use(admin || authorize('admin'));
 // --- Dashboard Statistics ---
 // Route: GET /api/v1/admin/stats
 router.get('/stats', getAdminStats);
+// Ensure this exists!
+router.get("/users", protect, adminOnly, getAllUsersController);
 
 // --- Practitioner Verification ---
 router.route('/practitioners')
