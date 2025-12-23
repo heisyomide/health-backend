@@ -18,10 +18,10 @@ const router = express.Router();
 const { register, login, logout, getMe, updatePassword } = authController;
 
 // Only mount the routes if the functions exist to prevent the crash
-if (register) router.post('/signup', register);
-if (login) router.post('/login', login);
-if (logout) router.get('/logout', logout);
-if (getMe) router.get('/me', protect, getMe); 
-if (updatePassword) router.put('/updatepassword', protect, updatePassword);
+router.post("/signup", register);   // ✅ NO ()
+router.post("/login", login);
+router.post("/logout", logout);
+router.get("/me", protect, getMe);
+router.put("/password", protect, updatePassword);
 
 module.exports = router;

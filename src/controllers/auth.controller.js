@@ -133,7 +133,7 @@ exports.logout = asyncHandler(async (req, res, next) => {
  * GET CURRENT USER
  * =====================================================
  */
-exports.getMe = asyncHandler(async (req, res, next) => {
+exports.getMe = asyncHandler(async (req, res) => {
   const user = req.user;
 
   let profile = null;
@@ -146,17 +146,22 @@ exports.getMe = asyncHandler(async (req, res, next) => {
     profile = await PractitionerProfile.findOne({ user: user._id });
   }
 
+  const fullName = profile
+    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
+    : "";
+
   res.status(200).json({
     success: true,
     user: {
       id: user._id,
       email: user.email,
       role: user.role,
-      profile,
-    },
+      fullName,
+      specialization: profile?.specialization,
+      profile
+    }
   });
 });
-
 /**
  * =====================================================
  * UPDATE PASSWORD
