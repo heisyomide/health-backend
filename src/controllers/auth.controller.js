@@ -69,7 +69,7 @@ exports.register = asyncHandler(async (req, res, next) => {
         firstName,
         lastName,
         age: req.body.age,
-        gender: req.body.gender,
+        gender: normalizeGender(req.body.gender),
         contactNumber: req.body.contactNumber,
         address: req.body.address,
       });
