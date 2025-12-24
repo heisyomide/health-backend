@@ -46,17 +46,17 @@ const sendTokenResponse = (user, statusCode, res) => {
 exports.register = asyncHandler(async (req, res, next) => {
   const { email, password, fullName, role } = req.body;
 
-  // 1. Validate required fields
+  // 1. Precise Validation
   if (!email || !password || !fullName) {
     return next(new ErrorResponse("Please provide email, password, and name", 400));
   }
 
-  // 2. Prepare Name Parts for Profile
+  // 2. Prepare Name Parts for Profile Models
   const nameParts = fullName.trim().split(/\s+/);
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-  // 3. Create User record (this currently works)
+  // 3. Create User record
   const user = await User.create({
     email,
     password,
@@ -66,13 +66,13 @@ exports.register = asyncHandler(async (req, res, next) => {
   try {
     let profile;
 
-    // 4. Create Profile - using try/catch ensures we handle failures here
+    // 4. Attempt Profile Creation
     if (user.role === "patient") {
       profile = await PatientProfile.create({
         user: user._id,
         firstName,
         lastName,
-        ...req.body // includes age, gender, etc.
+        ...req.body // Passes age, gender, etc. from req.body
       });
     } else {
       profile = await PractitionerProfile.create({
@@ -85,15 +85,16 @@ exports.register = asyncHandler(async (req, res, next) => {
 
     if (!profile) throw new Error("Profile creation failed");
 
-    // 5. Link profile and save
+    // 5. Link profile and final save
     user.profile = profile._id;
     await user.save({ validateBeforeSave: false });
 
-    // 6. Send Response
+    // 6. Success Response
     sendTokenResponse(user, 201, res);
 
   } catch (error) {
-    // CRITICAL CLEANUP: Delete the User if the Profile fails
+    // 7. CRITICAL CLEANUP: Delete the User if the Profile fails
+    // This prevents the "Server error. Please delete previous entry" message.
     await User.findByIdAndDelete(user._id);
     return next(new ErrorResponse(`Registration failed at profile stage: ${error.message}`, 500));
   }
