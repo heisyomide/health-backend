@@ -46,17 +46,14 @@ const sendTokenResponse = (user, statusCode, res) => {
 exports.register = asyncHandler(async (req, res, next) => {
   const { email, password, fullName, role } = req.body;
 
-  // 1. Precise Validation
   if (!email || !password || !fullName) {
     return next(new ErrorResponse("Please provide email, password, and name", 400));
   }
 
-  // 2. Prepare Name Parts for Profile Models
   const nameParts = fullName.trim().split(/\s+/);
   const firstName = nameParts[0];
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  const lastName = nameParts.slice(1).join(" ");
 
-  // 3. Create User record
   const user = await User.create({
     email,
     password,
@@ -66,37 +63,33 @@ exports.register = asyncHandler(async (req, res, next) => {
   try {
     let profile;
 
-    // 4. Attempt Profile Creation
     if (user.role === "patient") {
       profile = await PatientProfile.create({
         user: user._id,
         firstName,
         lastName,
-        ...req.body // Passes age, gender, etc. from req.body
+        age: req.body.age,
+        gender: req.body.gender,
+        contactNumber: req.body.contactNumber,
+        address: req.body.address,
       });
     } else {
       profile = await PractitionerProfile.create({
         user: user._id,
         firstName,
         lastName,
-        specialization: req.body.specialization || "General",
+        specialization: req.body.specialization || "General Practice",
       });
     }
 
-    if (!profile) throw new Error("Profile creation failed");
-
-    // 5. Link profile and final save
     user.profile = profile._id;
     await user.save({ validateBeforeSave: false });
 
-    // 6. Success Response
     sendTokenResponse(user, 201, res);
 
   } catch (error) {
-    // 7. CRITICAL CLEANUP: Delete the User if the Profile fails
-    // This prevents the "Server error. Please delete previous entry" message.
     await User.findByIdAndDelete(user._id);
-    return next(new ErrorResponse(`Registration failed at profile stage: ${error.message}`, 500));
+    return next(new ErrorResponse(error.message, 400));
   }
 });
 
