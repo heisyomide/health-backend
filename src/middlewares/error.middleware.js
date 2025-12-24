@@ -18,11 +18,15 @@ const errorHandler = (err, req, res, next) => {
     }
     
     // Mongoose Duplicate Key (E11000)
-    if (err.code === 11000) {
-        const message = `Duplicate field value entered: ${Object.keys(err.keyValue)}`;
-        error = new ErrorResponse(message, 400);
-    }
+if (err.code === 11000) {
+  const field = Object.keys(err.keyValue)[0];
+  const value = err.keyValue[field];
 
+  error = new ErrorResponse(
+    `${field.charAt(0).toUpperCase() + field.slice(1)} already exists: ${value}`,
+    400
+  );
+}
     // Mongoose Validation Error (ValidationError)
     if (err.name === 'ValidationError') {
         const message = Object.values(err.errors).map(val => val.message);
