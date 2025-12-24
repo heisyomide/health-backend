@@ -46,14 +46,17 @@ const sendTokenResponse = (user, statusCode, res) => {
  * =====================================================
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, name: fullname , accountType: role } = req.body;
+  // Destructure fullName from req.body
+  const { email, password, fullName, role } = req.body;
 
+  // Check if fullName exists before using it
   if (!email || !password || !fullName) {
-    return next(new ErrorResponse("Please provide email, password, and name", 400));
+    return next(new ErrorResponse("Please provide email, password, and fullName", 400));
   }
 
-  // Split fullName into parts safely
+  // Logic to split name...
   const nameParts = fullName.trim().split(" ");
+  // ... rest of your code
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
