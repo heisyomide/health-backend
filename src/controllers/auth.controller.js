@@ -1,35 +1,33 @@
+// src/controllers/auth.controller.js
+
 const asyncHandler = require("../utils/asyncHandler");
 const ErrorResponse = require("../utils/errorResponse");
 const { getSignedJwtToken } = require("../utils/jwt");
 
+// Models
 const User = require("../models/User");
 const PatientProfile = require("../models/PatientProfile");
 const PractitionerProfile = require("../models/PractitionerProfile");
 
 /**
  * =====================================================
- * HELPERS
+ * COOKIE HELPER
  * =====================================================
  */
-const normalizeFullName = (fullName = "") => {
-  const parts = fullName.trim().split(/\s+/);
-  return {
-    firstName: parts[0] || "",
-    lastName: parts.slice(1).join(" ") || "",
-  };
-};
-
 const sendTokenResponse = (user, statusCode, res) => {
   const token = getSignedJwtToken(user);
 
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    maxAge:
+      Number(process.env.JWT_COOKIE_EXPIRE) * 24 * 60 * 60 * 1000,
+  };
+
   res
     .status(statusCode)
-    .cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: Number(process.env.JWT_COOKIE_EXPIRE) * 24 * 60 * 60 * 1000,
-    })
+    .cookie("token", token, cookieOptions)
     .json({
       success: true,
       user: {
@@ -46,46 +44,43 @@ const sendTokenResponse = (user, statusCode, res) => {
  * =====================================================
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  // Destructure fullName from req.body
-  const { email, password, fullName, role } = req.body;
+  const { email, password, firstName, lastName, role } = req.body;
 
-  // Check if fullName exists before using it
-  if (!email || !password || !fullName) {
-    return next(new ErrorResponse("Please provide email, password, and fullName", 400));
+  if (!email || !password) {
+    return next(new ErrorResponse("Email and password required", 400));
   }
 
-  // Logic to split name...
-  const nameParts = fullName.trim().split(" ");
-  // ... rest of your code
-  const firstName = nameParts[0];
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-  // Create the User
   const user = await User.create({
     email,
     password,
     role: role || "patient",
   });
 
-  // Create the Profile based on role
   let profile;
+
   if (user.role === "patient") {
-    profile = await PatientProfile.create({ user: user._id, firstName, lastName });
-  } else {
-    profile = await PractitionerProfile.create({ 
-      user: user._id, 
-      firstName, 
-      lastName, 
-      specialization: "General" 
+    profile = await PatientProfile.create({
+      user: user._id,
+      firstName,
+      lastName,
     });
   }
 
-  // Link profile to user
+  if (user.role === "practitioner") {
+    profile = await PractitionerProfile.create({
+      user: user._id,
+      firstName,
+      lastName,
+      specialization: req.body.specialization || "General",
+    });
+  }
+
   user.profile = profile._id;
   await user.save({ validateBeforeSave: false });
 
   sendTokenResponse(user, 201, res);
 });
+
 /**
  * =====================================================
  * LOGIN
@@ -135,7 +130,7 @@ exports.logout = asyncHandler(async (req, res, next) => {
  * GET CURRENT USER
  * =====================================================
  */
-exports.getMe = asyncHandler(async (req, res) => {
+exports.getMe = asyncHandler(async (req, res, next) => {
   const user = req.user;
 
   let profile = null;
@@ -148,22 +143,17 @@ exports.getMe = asyncHandler(async (req, res) => {
     profile = await PractitionerProfile.findOne({ user: user._id });
   }
 
-  const fullName = profile
-    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
-    : "";
-
   res.status(200).json({
     success: true,
     user: {
       id: user._id,
       email: user.email,
       role: user.role,
-      fullName,
-      specialization: profile?.specialization,
-      profile
-    }
+      profile,
+    },
   });
 });
+
 /**
  * =====================================================
  * UPDATE PASSWORD
