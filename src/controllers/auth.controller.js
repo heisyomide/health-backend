@@ -46,17 +46,17 @@ const sendTokenResponse = (user, statusCode, res) => {
 exports.register = asyncHandler(async (req, res, next) => {
   const { email, password, fullName, role } = req.body;
 
-  // 1. Validation check before DB operations
+  // 1. Validate required fields
   if (!email || !password || !fullName) {
-    return next(new ErrorResponse("Please provide email, password, and full name", 400));
+    return next(new ErrorResponse("Please provide email, password, and name", 400));
   }
 
-  // 2. Prepare Profile Data
-  const nameParts = fullName.trim().split(/\s+/); // Splits by any whitespace
+  // 2. Prepare Name Parts for Profile
+  const nameParts = fullName.trim().split(/\s+/);
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-  // 3. Create User
+  // 3. Create User record (this currently works)
   const user = await User.create({
     email,
     password,
@@ -66,15 +66,15 @@ exports.register = asyncHandler(async (req, res, next) => {
   try {
     let profile;
 
-    // 4. Create Role-Specific Profile
+    // 4. Create Profile - using try/catch ensures we handle failures here
     if (user.role === "patient") {
       profile = await PatientProfile.create({
         user: user._id,
         firstName,
         lastName,
-        ...req.body // Spread remaining optional fields (age, gender, etc.)
+        ...req.body // includes age, gender, etc.
       });
-    } else if (user.role === "practitioner") {
+    } else {
       profile = await PractitionerProfile.create({
         user: user._id,
         firstName,
@@ -83,16 +83,17 @@ exports.register = asyncHandler(async (req, res, next) => {
       });
     }
 
-    if (!profile) throw new Error("Profile definition missing for this role");
+    if (!profile) throw new Error("Profile creation failed");
 
-    // 5. Finalize User association
+    // 5. Link profile and save
     user.profile = profile._id;
     await user.save({ validateBeforeSave: false });
 
+    // 6. Send Response
     sendTokenResponse(user, 201, res);
 
   } catch (error) {
-    // 6. CLEANUP: If profile fails, delete the "Ghost User"
+    // CRITICAL CLEANUP: Delete the User if the Profile fails
     await User.findByIdAndDelete(user._id);
     return next(new ErrorResponse(`Registration failed at profile stage: ${error.message}`, 500));
   }
