@@ -44,12 +44,19 @@ const sendTokenResponse = (user, statusCode, res) => {
  * =====================================================
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, firstName, lastName, role } = req.body;
+  // 1. Destructure fullName (what your frontend actually sends)
+  const { email, password, fullName, role } = req.body;
 
-  if (!email || !password) {
-    return next(new ErrorResponse("Email and password required", 400));
+  if (!email || !password || !fullName) {
+    return next(new ErrorResponse("Email, password, and name are required", 400));
   }
 
+  // 2. Split fullName into first and last for the profiles
+  const nameParts = fullName.trim().split(" ");
+  const firstName = nameParts[0];
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+  // 3. Create User
   const user = await User.create({
     email,
     password,
@@ -58,15 +65,14 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   let profile;
 
+  // 4. Create Profile based on role
   if (user.role === "patient") {
     profile = await PatientProfile.create({
       user: user._id,
       firstName,
       lastName,
     });
-  }
-
-  if (user.role === "practitioner") {
+  } else if (user.role === "practitioner") {
     profile = await PractitionerProfile.create({
       user: user._id,
       firstName,
@@ -75,9 +81,17 @@ exports.register = asyncHandler(async (req, res, next) => {
     });
   }
 
+  // 5. SAFETY CHECK: Ensure profile exists before accessing ._id
+  if (!profile) {
+    // If we got here, delete the 'ghost' user so they can try again
+    await User.findByIdAndDelete(user._id);
+    return next(new ErrorResponse("Profile creation failed. Check user role.", 500));
+  }
+
   user.profile = profile._id;
   await user.save({ validateBeforeSave: false });
 
+  // 6. Final success response
   sendTokenResponse(user, 201, res);
 });
 
