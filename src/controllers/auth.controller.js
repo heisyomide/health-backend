@@ -4,135 +4,11 @@ const asyncHandler = require("../utils/asyncHandler");
 const ErrorResponse = require("../utils/errorResponse");
 const { getSignedJwtToken } = require("../utils/jwt");
 
-// Models
 const User = require("../models/User");
 const PatientProfile = require("../models/PatientProfile");
 const PractitionerProfile = require("../models/PractitionerProfile");
 
-/**
- * =====================================================
- * COOKIE HELPER
- * =====================================================
- */
-const sendTokenResponse = (user, statusCode, res) => {
-  const token = getSignedJwtToken(user);
-
-  const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge:
-      Number(process.env.JWT_COOKIE_EXPIRE) * 24 * 60 * 60 * 1000,
-  };
-
-  res
-    .status(statusCode)
-    .cookie("token", token, cookieOptions)
-    .json({
-      success: true,
-      user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-      },
-    });
-};
-
-/**
- * =====================================================
- * REGISTER
- * =====================================================
- */
-exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, firstName, lastName, role } = req.body;
-
-  if (!email || !password) {
-    return next(new ErrorResponse("Email and password required", 400));
-  }
-
-  const user = await User.create({
-    email,
-    password,
-    role: role || "patient",
-  });
-
-  let profile;
-
-  if (user.role === "patient") {
-    profile = await PatientProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-    });
-  }
-
-  if (user.role === "practitioner") {
-    profile = await PractitionerProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-      specialization: req.body.specialization || "General",
-    });
-  }
-
-  user.profile = profile._id;
-  await user.save({ validateBeforeSave: false });
-
-  sendTokenResponse(user, 201, res);
-});
-
-/**
- * =====================================================
- * LOGIN
- * =====================================================
- */
-exports.login = asyncHandler(async (req, res, next) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return next(new ErrorResponse("Invalid credentials", 401));
-  }
-
-  const user = await User.findOne({ email }).select("+password");
-
-  if (!user) {
-    return next(new ErrorResponse("Invalid credentials", 401));
-  }
-
-  const isMatch = await user.matchPassword(password);
-
-  if (!isMatch) {
-    return next(new ErrorResponse("Invalid credentials", 401));
-  }
-
-  sendTokenResponse(user, 200, res);
-});
-
-/**
- * =====================================================
- * LOGOUT
- * =====================================================
- */
-exports.logout = asyncHandler(async (req, res, next) => {
-  res.cookie("token", "none", {
-    httpOnly: true,
-    expires: new Date(Date.now() + 10),
-  });
-
-  res.status(200).json({
-    success: true,
-    message: "Logged out",
-  });
-});
-
-/**
- * =====================================================
- * GET CURRENT USER
- * =====================================================
- */
-exports.getMe = asyncHandler(async (req, res, next) => {
-  const user = req.user;
-
+const sendTokenResponse = async (user, statusCode, res) => {
   let profile = null;
 
   if (user.role === "patient") {
@@ -143,38 +19,68 @@ exports.getMe = asyncHandler(async (req, res, next) => {
     profile = await PractitionerProfile.findOne({ user: user._id });
   }
 
-  res.status(200).json({
-    success: true,
-    user: {
-      id: user._id,
-      email: user.email,
-      role: user.role,
-      profile,
-    },
-  });
-});
+  const token = getSignedJwtToken(user);
 
-/**
- * =====================================================
- * UPDATE PASSWORD
- * =====================================================
- */
-exports.updatePassword = asyncHandler(async (req, res, next) => {
-  const { currentPassword, newPassword } = req.body;
+  res
+    .status(statusCode)
+    .cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: Number(process.env.JWT_COOKIE_EXPIRE) * 86400000,
+    })
+    .json({
+      success: true,
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        profile,
+      },
+    });
+};
 
-  const user = await User.findById(req.user.id).select("+password");
+/* REGISTER */
+exports.register = asyncHandler(async (req, res) => {
+  const { email, password, role, firstName, lastName, specialization } = req.body;
 
-  if (!(await user.matchPassword(currentPassword))) {
-    return next(
-      new ErrorResponse("Current password is incorrect", 401)
-    );
+  const user = await User.create({ email, password, role });
+
+  if (role === "patient") {
+    await PatientProfile.create({ user: user._id, firstName, lastName });
   }
 
-  user.password = newPassword;
-  await user.save();
+  if (role === "practitioner") {
+    await PractitionerProfile.create({
+      user: user._id,
+      firstName,
+      lastName,
+      specialization: specialization || "General Practice",
+    });
+  }
 
-  res.status(200).json({
-    success: true,
-    message: "Password updated successfully",
-  });
+  await sendTokenResponse(user, 201, res);
+});
+
+/* LOGIN */
+exports.login = asyncHandler(async (req, res, next) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email }).select("+password");
+  if (!user || !(await user.matchPassword(password))) {
+    return next(new ErrorResponse("Invalid credentials", 401));
+  }
+
+  await sendTokenResponse(user, 200, res);
+});
+
+/* GET ME */
+exports.getMe = asyncHandler(async (req, res) => {
+  await sendTokenResponse(req.user, 200, res);
+});
+
+/* LOGOUT */
+exports.logout = asyncHandler(async (req, res) => {
+  res.cookie("token", "none", { expires: new Date(Date.now() + 10) });
+  res.status(200).json({ success: true });
 });

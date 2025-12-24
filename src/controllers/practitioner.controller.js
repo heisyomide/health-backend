@@ -18,17 +18,15 @@ exports.getPractitionerData = asyncHandler(async (req, res, next) => {
     const profile = await PractitionerProfile.findOne({ user: userId });
     const availability = await Availability.findOne({ practitioner: userId });
 
-    if (!profile) {
-        return next(new ErrorResponse('Practitioner profile not found', 404));
+if (!profile) {
+  return res.status(200).json({
+    success: true,
+    data: {
+      profile: null,
+      availability: null
     }
-
-    res.status(200).json({
-        success: true,
-        data: {
-            profile: profile,
-            availability: availability || null
-        }
-    });
+  });
+}
 });
 
 // @desc    Update the logged-in practitioner's profile (Specialization, License, etc.)

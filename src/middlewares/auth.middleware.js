@@ -8,43 +8,48 @@ const User = require('../models/User');
  * Middleware to protect routes: Verify JWT and attach user to request
  */
 exports.protect = asyncHandler(async (req, res, next) => {
-    let token;
+  let token;
 
-    // 1. Check for token in headers (Bearer Token)
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        token = req.headers.authorization.split(' ')[1];
-    } 
-    // 2. Check for token in cookies (Optional but good practice for frontend apps)
-    else if (req.cookies.token) {
-        token = req.cookies.token;
-    }
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies?.token) {
+    token = req.cookies.token;
+  }
 
-    // Check if token exists
-    if (!token) {
-        return next(new ErrorResponse('Not authorized to access this route. No token found.', 401));
-    }
+  if (!token) {
+    return next(
+      new ErrorResponse('Not authorized, no token provided', 401)
+    );
+  }
 
-    try {
-        // Verify token and decode payload
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Fetch user from DB based on ID in token
-        const user = await User.findById(decoded.id).select('+password'); 
-        
-        if (!user) {
-            return next(new ErrorResponse('User not found. Invalid token.', 401));
-        }
+  const user = await User.findById(decoded.id);
 
-        // Attach user object to the request (crucial for authorization)
-        req.user = user;
-        next();
+  if (!user) {
+    return next(new ErrorResponse('User not found', 401));
+  }
 
-    } catch (err) {
-        // If token is invalid or expired
-        return next(new ErrorResponse('Not authorized to access this route. Token failed.', 401));
-    }
+  req.user = user;
+  next();
 });
 
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new ErrorResponse(
+          `Role ${req.user.role} is not authorized`,
+          403
+        )
+      );
+    }
+    next();
+  };
+};
 /**
  * Middleware for Role-Based Access Control (RBAC)
  * Authorize users based on their role
