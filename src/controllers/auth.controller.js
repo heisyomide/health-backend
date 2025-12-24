@@ -44,15 +44,15 @@ const sendTokenResponse = (user, statusCode, res) => {
  * =====================================================
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  // 1. Destructure fullName (what your frontend actually sends)
   const { email, password, fullName, role } = req.body;
 
+  // 1. Validation check before DB operations
   if (!email || !password || !fullName) {
-    return next(new ErrorResponse("Email, password, and name are required", 400));
+    return next(new ErrorResponse("Please provide email, password, and full name", 400));
   }
 
-  // 2. Split fullName into first and last for the profiles
-  const nameParts = fullName.trim().split(" ");
+  // 2. Prepare Profile Data
+  const nameParts = fullName.trim().split(/\s+/); // Splits by any whitespace
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
@@ -63,36 +63,39 @@ exports.register = asyncHandler(async (req, res, next) => {
     role: role || "patient",
   });
 
-  let profile;
+  try {
+    let profile;
 
-  // 4. Create Profile based on role
-  if (user.role === "patient") {
-    profile = await PatientProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-    });
-  } else if (user.role === "practitioner") {
-    profile = await PractitionerProfile.create({
-      user: user._id,
-      firstName,
-      lastName,
-      specialization: req.body.specialization || "General",
-    });
-  }
+    // 4. Create Role-Specific Profile
+    if (user.role === "patient") {
+      profile = await PatientProfile.create({
+        user: user._id,
+        firstName,
+        lastName,
+        ...req.body // Spread remaining optional fields (age, gender, etc.)
+      });
+    } else if (user.role === "practitioner") {
+      profile = await PractitionerProfile.create({
+        user: user._id,
+        firstName,
+        lastName,
+        specialization: req.body.specialization || "General",
+      });
+    }
 
-  // 5. SAFETY CHECK: Ensure profile exists before accessing ._id
-  if (!profile) {
-    // If we got here, delete the 'ghost' user so they can try again
+    if (!profile) throw new Error("Profile definition missing for this role");
+
+    // 5. Finalize User association
+    user.profile = profile._id;
+    await user.save({ validateBeforeSave: false });
+
+    sendTokenResponse(user, 201, res);
+
+  } catch (error) {
+    // 6. CLEANUP: If profile fails, delete the "Ghost User"
     await User.findByIdAndDelete(user._id);
-    return next(new ErrorResponse("Profile creation failed. Check user role.", 500));
+    return next(new ErrorResponse(`Registration failed at profile stage: ${error.message}`, 500));
   }
-
-  user.profile = profile._id;
-  await user.save({ validateBeforeSave: false });
-
-  // 6. Final success response
-  sendTokenResponse(user, 201, res);
 });
 
 /**
