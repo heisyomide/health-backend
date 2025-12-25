@@ -9,6 +9,22 @@ const User = require("../models/User");
 const PatientProfile = require("../models/PatientProfile");
 const PractitionerProfile = require("../models/PractitionerProfile");
 
+
+/**
+ * Normalize gender enum safely
+ */
+const normalizeGender = (gender) => {
+  if (!gender) return undefined;
+
+  const g = gender.toString().trim().toLowerCase();
+
+  if (g === "male") return "Male";
+  if (g === "female") return "Female";
+  if (g === "other") return "Other";
+
+  return undefined;
+};
+
 /**
  * =====================================================
  * COOKIE HELPER
