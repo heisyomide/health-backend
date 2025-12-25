@@ -105,3 +105,80 @@ exports.updateMedicalHistory = asyncHandler(async (req, res, next) => {
         data: medicalHistory
     });
 });
+
+// ===== DASHBOARD APIs (PHASE 1 – MOCK DATA) =====
+
+// GET /api/v1/patient/metrics
+exports.getPatientMetrics = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    metrics: [
+      { label: "Heart Rate", value: "72 bpm", color: "from-red-400 to-red-600" },
+      { label: "Blood Pressure", value: "120/80", color: "from-blue-400 to-blue-600" },
+      { label: "Weight", value: "70 kg", color: "from-green-400 to-green-600" }
+    ]
+  });
+});
+
+// GET /api/v1/patient/appointments
+exports.getPatientAppointments = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    appointments: []
+  });
+});
+
+// GET /api/v1/patient/summary
+exports.getPatientSummary = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    summary: {
+      heart: "72",
+      systolic: "120",
+      sessions: "8"
+    }
+  });
+});
+
+// GET /api/v1/patient/health-progress
+exports.getHealthProgress = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    score: 78
+  });
+});
+
+// GET /api/v1/patient/report
+exports.getPatientReport = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    labels: ["Jan", "Feb", "Mar", "Apr", "May"],
+    values: [65, 70, 72, 75, 78]
+  });
+});
+
+// GET /api/v1/patient/treatment
+exports.getTreatmentPlan = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    treatment: {
+      sessions: 12,
+      name: "Physiotherapy",
+      cadence: "Weekly",
+      histogram: [20, 40, 60, 80, 100],
+      weeks: "6 weeks"
+    }
+  });
+});
+
+// GET /api/v1/patient/medicine
+exports.getPatientMedicine = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    medicine: {
+      name: "Paracetamol",
+      dose: "500mg twice daily",
+      refillInDays: 5
+    }
+  });
+});
