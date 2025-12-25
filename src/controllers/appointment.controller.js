@@ -77,3 +77,50 @@ exports.getMyAppointments = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({ success: true, count: appointments.length, data: appointments });
 });
+
+// @desc    Book a new appointment (Patient action)
+// @route   POST /api/v1/appointments
+// @access  Private (Patient)
+exports.bookAppointment = asyncHandler(async (req, res, next) => {
+    const { practitionerId, appointmentDate, duration, consultationType, notes } = req.body;
+
+    // 1. Check for required fields
+    if (!practitionerId || !appointmentDate) {
+        return next(new ErrorResponse('Please provide practitionerId and appointmentDate', 400));
+    }
+
+    // 2. Verify practitioner exists
+    const practitioner = await User.findById(practitionerId);
+    if (!practitioner || practitioner.role !== 'practitioner') {
+        return next(new ErrorResponse('Practitioner not found', 404));
+    }
+
+    // 3. Create the appointment
+    const appointment = await Appointment.create({
+        patient: req.user._id,
+        practitioner: practitionerId,
+        appointmentDate: new Date(appointmentDate),
+        duration: duration || 30,
+        consultationType: consultationType || 'Video',
+        notes,
+        status: 'Pending', // Default status
+    });
+
+    // 4. Send notification email to the Practitioner
+    try {
+        await sendEmail({
+            email: practitioner.email,
+            subject: 'New Appointment Request - HealthMe',
+            message: `Hi Dr. ${practitioner.lastName},\n\nYou have received a new appointment request from ${req.user.firstName} for ${new Date(appointmentDate).toLocaleString()}.\n\nPlease log in to your dashboard to confirm or reschedule.\n\nRegards,\nHealthMe Team`
+        });
+    } catch (err) {
+        console.error(`Email failed: ${err.message}`);
+        // We don't return next(err) here because the appointment is already saved
+    }
+
+    res.status(201).json({
+        success: true,
+        message: 'Appointment booked successfully. Awaiting confirmation.',
+        data: appointment
+    });
+});

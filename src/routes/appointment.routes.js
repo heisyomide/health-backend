@@ -7,7 +7,7 @@ const {
     cancelAppointment,
     bookAppointment 
 } = require('../controllers/appointment.controller');
-const { protect } = require('../middleware/auth'); // Your auth middleware
+const { protect } = require('../middlewares/auth.middleware'); // Your auth middleware
 
 router.use(protect); // Protect all routes
 
