@@ -1,27 +1,24 @@
-// src/routes/appointment.routes.js
 const express = require('express');
-const { protect, authorize } = require('../middlewares/auth.middleware');
-const { 
-    bookAppointment,
-    getMyAppointments,
-    updateAppointmentStatus
-} = require('../controllers/appointment.controller');
-
 const router = express.Router();
+const { 
+    getMyAppointments, 
+    getAppointment, 
+    rescheduleAppointment, 
+    cancelAppointment,
+    bookAppointment 
+} = require('../controllers/appointment.controller');
+const { protect } = require('../middleware/auth'); // Your auth middleware
 
-// Apply protection to all appointment routes
-router.use(protect);
+router.use(protect); // Protect all routes
 
-// POST /appointments (Booking - requires patient role)
 router.route('/')
-    .post(authorize('patient'), bookAppointment);
+    .get(getMyAppointments)
+    .post(bookAppointment);
 
-// GET /appointments/me (Fetching appointments - allowed for patient and practitioner)
-router.route('/me')
-    .get(authorize('patient', 'practitioner'), getMyAppointments);
+router.route('/:id')
+    .get(getAppointment);
 
-// PUT /appointments/:id/status (Updating status/cancellation - allowed for patient and practitioner)
-router.route('/:id/status')
-    .put(authorize('patient', 'practitioner'), updateAppointmentStatus);
+router.patch('/:id/reschedule', rescheduleAppointment);
+router.patch('/:id/cancel', cancelAppointment);
 
 module.exports = router;
