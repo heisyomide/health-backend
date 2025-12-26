@@ -6,7 +6,8 @@ const {
     updatePractitionerProfile,
     updateAvailability,
     submitDiagnosis,
-    issuePrescription
+    issuePrescription,
+    getPractitionerDashboard
 } = require('../controllers/practitioner.controller');
 
 const router = express.Router();
@@ -29,6 +30,8 @@ router.route('/diagnoses')
 
 router.route('/prescriptions')
     .post(issuePrescription);
+
+    router.get('/dashboard', getPractitionerDashboard);
 
 // Future Phase 2/5 routes will be added here (e.g., /patients, /appointments)
 

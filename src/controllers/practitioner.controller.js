@@ -139,3 +139,73 @@ exports.issuePrescription = asyncHandler(async (req, res, next) => {
         data: prescription
     });
 });
+// @desc    Get practitioner dashboard summary
+// @route   GET /api/v1/practitioners/dashboard
+// @access  Private (Practitioner only)
+exports.getPractitionerDashboard = asyncHandler(async (req, res, next) => {
+  const practitionerId = req.user._id;
+
+  const profile = await PractitionerProfile.findOne({ user: practitionerId });
+
+  if (!profile) {
+    return next(new ErrorResponse('Practitioner profile not found', 404));
+  }
+
+  // Upcoming Appointments
+  const upcomingAppointments = await Appointment.find({
+    practitioner: practitionerId,
+    status: { $in: ['Scheduled', 'Confirmed'] }
+  })
+    .sort({ date: 1 })
+    .limit(5)
+    .populate('patient', 'fullName');
+
+  // Completed appointments count
+  const completedAppointments = await Appointment.countDocuments({
+    practitioner: practitionerId,
+    status: 'Completed'
+  });
+
+  // Distinct patients attended
+  const activePatients = await Appointment.distinct('patient', {
+    practitioner: practitionerId,
+    status: 'Completed'
+  });
+
+  // Profile completion calculation
+  const completionFields = [
+    profile.firstName,
+    profile.lastName,
+    profile.specialization,
+    profile.licenseNumber,
+    profile.contactNumber,
+    profile.clinicAddress
+  ];
+
+  const completedFields = completionFields.filter(Boolean).length;
+  const profileCompletion = Math.round(
+    (completedFields / completionFields.length) * 100
+  );
+
+  res.status(200).json({
+    success: true,
+    data: {
+      profile: {
+        fullName: `${profile.firstName} ${profile.lastName}`,
+        specialization: profile.specialization,
+        isVerified: profile.isVerified,
+        profileCompletion
+      },
+      stats: {
+        totalPatients: activePatients.length,
+        completedAppointments
+      },
+      upcomingAppointments,
+      wallet: {
+        balance: 0,        // stub
+        currency: 'NGN',
+        payoutMode: 'instant'
+      }
+    }
+  });
+});
