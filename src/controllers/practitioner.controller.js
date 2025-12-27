@@ -7,6 +7,69 @@ const Availability = require('../models/Availability');
 const Appointment = require('../models/Appointment');
 const Diagnosis = require('../models/Diagnosis');
 const Prescription = require('../models/Prescription');
+const User = require('../models/User');
+const { uploadToCloudinary } = require('../utils/cloudinary'); // Assuming you use Cloudinary
+
+
+exports.onboardPractitioner = async (req, res) => {
+  try {
+    const userId = req.user.id; // From your auth middleware
+    const {
+      specialization,
+      licenseNumber,
+      ninNumber,
+      phoneNumber,
+      address,
+      hospitalAffiliation,
+      bio,
+      nextOfKinName,
+      nextOfKinPhone
+    } = req.body;
+
+    // 1. Validation: Ensure all "Enterprise" fields are present
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Medical License document is required." });
+    }
+
+    // 2. Upload License to Cloudinary/S3
+    // 'req.file.path' is provided by multer
+    const uploadResult = await uploadToCloudinary(req.file.path, "practitioner_licenses");
+
+    // 3. Update the User Profile
+    const updatedPractitioner = await User.findByIdAndUpdate(
+      userId,
+      {
+        specialization,
+        licenseNumber,
+        ninNumber,
+        phoneNumber,
+        address,
+        hospitalAffiliation,
+        bio,
+        nextOfKin: {
+          name: nextOfKinName,
+          phone: nextOfKinPhone
+        },
+        licenseDocument: uploadResult.secure_url,
+        // CRITICAL: Change status to pending for Admin review
+        verificationStatus: 'pending', 
+        isVerified: false, 
+        onboardingCompleted: true
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Onboarding documents submitted for review.",
+      data: updatedPractitioner
+    });
+
+  } catch (error) {
+    console.error("Onboarding Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error during onboarding." });
+  }
+};
 
 
 // @desc    Get the logged-in practitioner's profile and availability
