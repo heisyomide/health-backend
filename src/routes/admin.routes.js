@@ -1,31 +1,23 @@
 const express = require('express');
 const router = express.Router();
-
-// Middleware
 const { protect, admin } = require('../middlewares/auth.middleware');
-
-// Controllers
-const {
-  getAdminStats,
-  getAllUsers,
-  verifyUser,          // ✅ unified accept / reject
-  getPendingPayouts,
-  processPayout
+const { 
+    getAdminStats,
+    getAllUsers,
+    verifyPractitioner, // Changed name to match controller
+    getPendingPayouts,
+    processPayout 
 } = require('../controllers/admin.controller');
 
-// ---------------- PROTECTION ----------------
 router.use(protect);
-router.use(admin);
+router.use(admin); 
 
-// ---------------- DASHBOARD ----------------
 router.get('/stats', getAdminStats);
 router.get('/users', getAllUsers);
 
-// ---------------- VERIFICATION ----------------
-// Accept / Reject practitioner
-router.patch('/users/:userId/verify', verifyUser);
+// Unified verification route (handles both Accept and Reject via req.body)
+router.put('/practitioners/:userId/verify', verifyPractitioner);
 
-// ---------------- PAYOUTS ----------------
 router.get('/payouts/pending', getPendingPayouts);
 router.put('/payouts/:payoutId/process', processPayout);
 
