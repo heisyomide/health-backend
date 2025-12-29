@@ -11,89 +11,74 @@ const User = require('../models/User');
 const { uploadToCloudinary } = require('../utils/cloudinary'); // Assuming you use Cloudinary
 
 
-exports.onboardPractitioner = async (req, res) => {
-  try {
-    const userId = req.user.id; // From your auth middleware
-    const {
-      specialization,
-      licenseNumber,
-      ninNumber,
-      phoneNumber,
-      address,
-      hospitalAffiliation,
-      bio,
-      nextOfKinName,
-      nextOfKinPhone
-    } = req.body;
+exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
+  const userId = req.user._id;
 
-    // 1. Validation: Ensure all "Enterprise" fields are present
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "Medical License document is required." });
-    }
-
-    // 2. Upload License to Cloudinary/S3
-    // 'req.file.path' is provided by multer
-    const uploadResult = await uploadToCloudinary(req.file.path, "practitioner_licenses");
-
-    // 3. Update the User Profile
-    const updatedPractitioner = await User.findByIdAndUpdate(
-      userId,
-      {
-        specialization,
-        licenseNumber,
-        ninNumber,
-        phoneNumber,
-        address,
-        hospitalAffiliation,
-        bio,
-        nextOfKin: {
-          name: nextOfKinName,
-          phone: nextOfKinPhone
-        },
-        licenseDocument: uploadResult.secure_url,
-        // CRITICAL: Change status to pending for Admin review
-        verificationStatus: 'pending', 
-        isVerified: false, 
-        onboardingCompleted: true
-      },
-      { new: true, runValidators: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Onboarding documents submitted for review.",
-      data: updatedPractitioner
-    });
-
-  } catch (error) {
-    console.error("Onboarding Error:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error during onboarding." });
+  if (!req.file) {
+    return next(new ErrorResponse('Medical license is required', 400));
   }
-};
 
+  const upload = await uploadToCloudinary(
+    req.file.path,
+    'practitioner_licenses'
+  );
+
+  const profile = await PractitionerProfile.findOneAndUpdate(
+    { user: userId },
+    {
+      specialization: req.body.specialization,
+      licenseNumber: req.body.licenseNumber,
+      ninNumber: req.body.ninNumber,
+      phoneNumber: req.body.phoneNumber,
+      address: req.body.address,
+      hospitalAffiliation: req.body.hospitalAffiliation,
+      bio: req.body.bio,
+      licenseDocument: upload.secure_url,
+      nextOfKin: {
+        name: req.body.nextOfKinName,
+        phone: req.body.nextOfKinPhone
+      }
+    },
+    { new: true, runValidators: true }
+  );
+
+  if (!profile) {
+    return next(new ErrorResponse('Practitioner profile not found', 404));
+  }
+
+  await User.findByIdAndUpdate(userId, {
+    onboardingCompleted: true,
+    verificationStatus: 'pending',
+    isVerified: false
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Onboarding submitted. Awaiting admin review.'
+  });
+});
 
 // @desc    Get the logged-in practitioner's profile and availability
 // @route   GET /api/v1/practitioners/me
 // @access  Private (Practitioner only)
 exports.getPractitionerData = asyncHandler(async (req, res, next) => {
-    const userId = req.user._id;
+  const profile = await PractitionerProfile.findOne({
+    user: req.user._id
+  });
 
-    const profile = await PractitionerProfile.findOne({ user: userId });
-    const availability = await Availability.findOne({ practitioner: userId });
+  if (!profile) {
+    return next(new ErrorResponse('Practitioner profile not found', 404));
+  }
 
-    if (!profile) {
-        return next(new ErrorResponse('Practitioner profile not found', 404));
-    }
+  const availability = await Availability.findOne({
+    practitioner: req.user._id
+  });
 
-    res.status(200).json({
-        success: true,
-        data: {
-            profile: profile,
-            availability: availability || null
-        }
-    });
+  res.status(200).json({
+    success: true,
+    data: { profile, availability }
+  });
 });
-
 // @desc    Update the logged-in practitioner's profile (Specialization, License, etc.)
 // @route   PUT /api/v1/practitioners/me
 // @access  Private (Practitioner only)
@@ -206,49 +191,30 @@ exports.issuePrescription = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/practitioners/dashboard
 // @access  Private (Practitioner only)
 exports.getPractitionerDashboard = asyncHandler(async (req, res, next) => {
-  const practitionerId = req.user._id;
-
-  const profile = await PractitionerProfile.findOne({ user: practitionerId });
+  const user = await User.findById(req.user._id);
+  const profile = await PractitionerProfile.findOne({ user: user._id });
 
   if (!profile) {
     return next(new ErrorResponse('Practitioner profile not found', 404));
   }
 
-  // Upcoming Appointments
   const upcomingAppointments = await Appointment.find({
-    practitioner: practitionerId,
+    practitioner: user._id,
     status: { $in: ['Scheduled', 'Confirmed'] }
   })
     .sort({ date: 1 })
     .limit(5)
     .populate('patient', 'fullName');
 
-  // Completed appointments count
   const completedAppointments = await Appointment.countDocuments({
-    practitioner: practitionerId,
+    practitioner: user._id,
     status: 'Completed'
   });
 
-  // Distinct patients attended
   const activePatients = await Appointment.distinct('patient', {
-    practitioner: practitionerId,
+    practitioner: user._id,
     status: 'Completed'
   });
-
-  // Profile completion calculation
-  const completionFields = [
-    profile.firstName,
-    profile.lastName,
-    profile.specialization,
-    profile.licenseNumber,
-    profile.contactNumber,
-    profile.clinicAddress
-  ];
-
-  const completedFields = completionFields.filter(Boolean).length;
-  const profileCompletion = Math.round(
-    (completedFields / completionFields.length) * 100
-  );
 
   res.status(200).json({
     success: true,
@@ -256,8 +222,7 @@ exports.getPractitionerDashboard = asyncHandler(async (req, res, next) => {
       profile: {
         fullName: `${profile.firstName} ${profile.lastName}`,
         specialization: profile.specialization,
-        isVerified: profile.isVerified,
-        profileCompletion
+        isVerified: user.isVerified
       },
       stats: {
         totalPatients: activePatients.length,
@@ -265,9 +230,8 @@ exports.getPractitionerDashboard = asyncHandler(async (req, res, next) => {
       },
       upcomingAppointments,
       wallet: {
-        balance: 0,        // stub
-        currency: 'NGN',
-        payoutMode: 'instant'
+        balance: 0,
+        currency: 'NGN'
       }
     }
   });
