@@ -1,13 +1,12 @@
-// src/models/PractitionerProfile.js
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const PractitionerProfileSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
-      unique: true
+      unique: true,
     },
 
     firstName: { type: String, required: true },
@@ -16,17 +15,17 @@ const PractitionerProfileSchema = new mongoose.Schema(
     specialization: {
       type: String,
       enum: [
-        'General Practice',
-        'Pediatrics',
-        'Cardiology',
-        'Mental Health',
-        'Other'
+        "General Practice",
+        "Pediatrics",
+        "Cardiology",
+        "Mental Health",
+        "Other",
       ],
-      required: true
+      default: null,
     },
 
-    licenseNumber: { type: String, unique: true },
-    ninNumber: { type: String, unique: true },
+    licenseNumber: { type: String, unique: true, sparse: true },
+    ninNumber: { type: String, unique: true, sparse: true },
 
     phoneNumber: String,
     address: String,
@@ -37,13 +36,13 @@ const PractitionerProfileSchema = new mongoose.Schema(
 
     nextOfKin: {
       name: String,
-      phone: String
-    }
+      phone: String,
+    },
   },
   { timestamps: true }
 );
 
 module.exports = mongoose.model(
-  'PractitionerProfile',
+  "PractitionerProfile",
   PractitionerProfileSchema
 );

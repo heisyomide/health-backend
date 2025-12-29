@@ -8,7 +8,7 @@ const PatientProfile = require("../models/PatientProfile");
 const PractitionerProfile = require("../models/PractitionerProfile");
 
 /* =====================================================
-   COOKIE + TOKEN RESPONSE
+   TOKEN RESPONSE
 ===================================================== */
 const sendTokenResponse = (user, statusCode, res) => {
   const token = getSignedJwtToken(user);
@@ -39,7 +39,14 @@ const sendTokenResponse = (user, statusCode, res) => {
    REGISTER
 ===================================================== */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { email, password, fullName, role = "patient" } = req.body;
+  const {
+    email,
+    password,
+    fullName,
+    role = "patient",
+    age,
+    gender,
+  } = req.body;
 
   if (!email || !password || !fullName) {
     return next(new ErrorResponse("Missing required fields", 400));
@@ -51,7 +58,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   const isPractitioner = role === "practitioner";
 
   const user = await User.create({
-    email,
+    email: email.toLowerCase(),
     password,
     role,
     onboardingCompleted: !isPractitioner,
@@ -65,8 +72,8 @@ exports.register = asyncHandler(async (req, res, next) => {
         user: user._id,
         firstName,
         lastName,
-        age: req.body.age,
-        gender: req.body.gender,
+        age,
+        gender,
       });
     }
 
@@ -75,7 +82,8 @@ exports.register = asyncHandler(async (req, res, next) => {
         user: user._id,
         firstName,
         lastName,
-        specialization: "General Practice",
+        specialization: null,
+        licenseNumber: null,
       });
     }
 
@@ -96,7 +104,8 @@ exports.login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse("Invalid credentials", 401));
   }
 
-  const user = await User.findOne({ email }).select("+password");
+  const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
+
   if (!user || !(await user.matchPassword(password))) {
     return next(new ErrorResponse("Invalid credentials", 401));
   }
