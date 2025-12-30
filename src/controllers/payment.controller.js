@@ -17,31 +17,28 @@ const Payout = require('../models/Payout');
  * This is called internally when an appointment status changes to 'Completed'.
  */
 exports.releaseFundsAndSplit = async (appointmentId) => {
-    // 1. Find the held payment record and update its status
-    const payment = await Payment.findOneAndUpdate(
-        { appointment: appointmentId, status: 'held' },
-        { status: 'completed', releasedAt: Date.now() },
-        { new: true }
-    );
+  const payment = await Payment.findOne({
+    appointment: appointmentId,
+    status: 'held'
+  });
 
-    if (!payment) {
-        console.warn(`Attempted to release funds for APPOINTMENT ID ${appointmentId}, but no held payment found (already released or refunded).`);
-        return;
+  if (!payment) return;
+
+  await Wallet.findOneAndUpdate(
+    { practitioner: payment.practitioner },
+    {
+      $inc: {
+        pendingBalance: -payment.practitionerShare,
+        balance: payment.practitionerShare,
+        totalEarned: payment.practitionerShare
+      }
     }
+  );
 
-    const { practitioner, practitionerShare } = payment;
+  payment.status = 'released';
+  payment.releasedAt = new Date();
+  await payment.save();
 
-    // 2. Transfer funds from pending to available balance in the Wallet
-    await Wallet.findOneAndUpdate(
-        { practitioner: practitioner },
-        {
-            $inc: {
-                pendingBalance: -practitionerShare, // Deduct from pending
-                balance: practitionerShare,         // Add to available balance
-                totalEarned: practitionerShare      // Update lifetime earnings
-            }
-        }
-    );
 
     console.log(`Funds released for Appointment ID ${appointmentId}. Practitioner Balance updated.`);
 };

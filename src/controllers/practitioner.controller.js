@@ -264,3 +264,28 @@ exports.getPractitionerDashboard = asyncHandler(async (req, res, next) => {
     },
   });
 });
+exports.confirmServiceDone = asyncHandler(async (req, res) => {
+  const { appointmentId, note } = req.body;
+
+  const appointment = await Appointment.findById(appointmentId);
+
+  if (!appointment) {
+    throw new ErrorResponse('Appointment not found', 404);
+  }
+
+  if (appointment.practitioner.toString() !== req.user.id) {
+    throw new ErrorResponse('Not authorized', 403);
+  }
+
+  if (appointment.status !== 'PAID') {
+    throw new ErrorResponse('Invalid appointment state', 400);
+  }
+
+  appointment.status = 'PRACTITIONER_CONFIRMED';
+  appointment.practitionerConfirmedAt = new Date();
+  appointment.completionEvidence.practitionerNote = note;
+
+  await appointment.save();
+
+  res.json({ success: true });
+});

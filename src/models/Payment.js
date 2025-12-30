@@ -48,8 +48,8 @@ const PaymentSchema = new mongoose.Schema({
     // Escrow Status
     status: {
         type: String,
-        enum: ['initiated', 'held', 'completed', 'refunded'],
-        default: 'initiated', // Initial status after successful verification
+        enum: ['held', 'released', 'refunded'],
+        default: 'held', // Initial status after successful verification
     },
     paidAt: { // Date the patient completed the payment
         type: Date,

@@ -1,7 +1,7 @@
 // src/controllers/patient.controller.js
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/errorResponse');
-
+const { releaseFundsAndSplit } = require('./payment.controller');
 const PatientProfile = require('../models/PatientProfile');
 const MedicalHistory = require('../models/MedicalHistory');
 const User = require('../models/User'); // Used for population
@@ -181,4 +181,26 @@ exports.getPatientMedicine = asyncHandler(async (req, res) => {
       refillInDays: 5
     }
   });
+});
+
+
+exports.confirmServiceCompleted = asyncHandler(async (req, res) => {
+  const { appointmentId } = req.body;
+
+  const appointment = await Appointment.findById(appointmentId);
+
+  if (!appointment) throw new ErrorResponse('Appointment not found', 404);
+  if (appointment.patient.toString() !== req.user.id)
+    throw new ErrorResponse('Unauthorized', 403);
+
+  if (appointment.status !== 'PRACTITIONER_CONFIRMED')
+    throw new ErrorResponse('Service not confirmed yet', 400);
+
+  appointment.status = 'COMPLETED';
+  appointment.patientConfirmedAt = new Date();
+  await appointment.save();
+
+  await releaseFundsAndSplit(appointmentId);
+
+  res.json({ success: true });
 });

@@ -29,4 +29,6 @@ router.post("/availability", controller.updateAvailability);
 router.post("/diagnoses", controller.submitDiagnosis);
 router.post("/prescriptions", controller.issuePrescription);
 
+router.post('/confirm-service', controller.confirmServiceDone);
+
 module.exports = router;
