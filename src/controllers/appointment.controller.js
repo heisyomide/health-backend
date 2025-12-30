@@ -124,9 +124,6 @@ exports.bookAppointment = asyncHandler(async (req, res, next) => {
         data: appointment
     });
 });
-const Appointment = require("../models/Appointment");
-const asyncHandler = require("../utils/asyncHandler");
-const ErrorResponse = require("../utils/errorResponse");
 
 /**
  * @desc    Get all appointments for the logged-in practitioner
