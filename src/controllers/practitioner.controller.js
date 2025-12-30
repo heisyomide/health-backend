@@ -19,16 +19,17 @@ exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse("Medical license document is required", 400));
   }
 
-  const profile = await PractitionerProfile.findOne({ user: userId });
+  // 1. Change findOne to "Find or Create" logic
+  let profile = await PractitionerProfile.findOne({ user: userId });
+  
   if (!profile) {
-    return next(new ErrorResponse("Practitioner profile not found", 404));
+    // If it doesn't exist, create it on the fly
+    profile = new PractitionerProfile({ user: userId });
   }
 
-  const upload = await uploadToCloudinary(
-    req.file.path,
-    "practitioner_licenses"
-  );
+  const upload = await uploadToCloudinary(req.file.path, "practitioner_licenses");
 
+  // 2. Map the data
   Object.assign(profile, {
     specialization: req.body.specialization,
     licenseNumber: req.body.licenseNumber,
@@ -43,6 +44,20 @@ exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
       phone: req.body.nextOfKinPhone,
     },
   });
+
+  await profile.save();
+
+  // 3. Update User Status
+  await User.findByIdAndUpdate(userId, {
+    onboardingCompleted: true,
+    verificationStatus: "pending"
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Onboarding submitted successfully."
+  });
+});
 
   await profile.save();
 
