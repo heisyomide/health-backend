@@ -12,12 +12,14 @@ const router = express.Router();
 router.use(protect);
 router.use(authorize("practitioner"));
 
+
+// The route MUST have 'protect' to populate req.user
 router.patch(
   "/onboarding",
+  protect, // <--- Add this if it was missing!
   upload.single("license"),
   controller.onboardPractitioner
 );
-
 router.get("/dashboard", controller.getPractitionerDashboard);
 
 router
