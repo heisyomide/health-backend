@@ -16,24 +16,29 @@ const { uploadToCloudinary } = require("../utils/cloudinary");
 exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
+  // 1. Validate File Existence
   if (!req.file) {
     return next(new ErrorResponse("Medical license document is required", 400));
   }
 
-  // 1. Find or Create logic
+  // 2. Find or Create Practitioner Profile
   let profile = await PractitionerProfile.findOne({ user: userId });
-  
   if (!profile) {
     profile = new PractitionerProfile({ user: userId });
   }
 
-  // 2. Upload to Cloudinary
+  // 3. Upload to Cloudinary
   const upload = await uploadToCloudinary(
     req.file.path,
     "practitioner_licenses"
   );
 
-  // 3. Map all data from request body to the profile
+  // 4. Safety Check: Ensure Cloudinary didn't return null
+  if (!upload || !upload.secure_url) {
+    return next(new ErrorResponse("Cloudinary upload failed. Please check server logs.", 500));
+  }
+
+  // 5. Map Data to Profile (Matching your frontend names)
   Object.assign(profile, {
     specialization: req.body.specialization,
     licenseNumber: req.body.licenseNumber,
@@ -49,22 +54,27 @@ exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
     },
   });
 
-  // 4. Save the profile
-  await profile.save();
+  // 6. Execute Database Updates
+  // We use Promise.all to run these at the same time for speed
+  await Promise.all([
+    profile.save(),
+    User.findByIdAndUpdate(userId, {
+      onboardingCompleted: true,
+      verificationStatus: "pending",
+      isVerified: false,
+    })
+  ]);
 
-  // 5. Update the User status
-  await User.findByIdAndUpdate(userId, {
-    onboardingCompleted: true,
-    verificationStatus: "pending",
-    isVerified: false,
-  });
-
-  // 6. Send the success response
+  // 7. Success Response
   res.status(200).json({
     success: true,
     message: "Onboarding submitted successfully. Awaiting admin review.",
   });
-}); // <--- Make sure this bracket closes the function properly
+});
+
+ 
+
+// <--- Make sure this bracket closes the function properly
 /* =====================================================
    GET PRACTITIONER PROFILE
 ===================================================== */
