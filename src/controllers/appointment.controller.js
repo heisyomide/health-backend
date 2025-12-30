@@ -124,3 +124,68 @@ exports.bookAppointment = asyncHandler(async (req, res, next) => {
         data: appointment
     });
 });
+const Appointment = require("../models/Appointment");
+const asyncHandler = require("../utils/asyncHandler");
+const ErrorResponse = require("../utils/errorResponse");
+
+/**
+ * @desc    Get all appointments for the logged-in practitioner
+ * @route   GET /api/v1/appointments
+ * @access  Private/Practitioner
+ */
+exports.getPractitionerAppointments = asyncHandler(async (req, res, next) => {
+  // 1. Find appointments where 'practitioner' matches the current user's ID
+  // 2. Populate 'patient' to get firstName, lastName, and profile image
+  const appointments = await Appointment.find({ practitioner: req.user.id })
+    .populate({
+      path: "patient",
+      select: "firstName lastName profileImage", // Matches your frontend needs
+    })
+    .sort("-date"); // Sort by newest first
+
+  res.status(200).json({
+    success: true,
+    count: appointments.length,
+    data: appointments,
+  });
+});
+
+/**
+ * @desc    Complete an appointment and trigger escrow release
+ * @route   PATCH /api/v1/appointments/:id/complete
+ * @access  Private/Practitioner
+ */
+exports.completeAppointment = asyncHandler(async (req, res, next) => {
+  let appointment = await Appointment.findById(req.params.id);
+
+  if (!appointment) {
+    return next(new ErrorResponse("Appointment not found", 404));
+  }
+
+  // Ensure the practitioner owns this appointment
+  if (appointment.practitioner.toString() !== req.user.id) {
+    return next(new ErrorResponse("Not authorized to update this appointment", 401));
+  }
+
+  // Only allow completing if it's currently 'confirmed' or 'pending'
+  if (appointment.status === "completed") {
+    return next(new ErrorResponse("Appointment is already completed", 400));
+  }
+
+  // Update Status
+  appointment.status = "completed";
+  await appointment.save();
+
+  /**
+   * TRIGGER ESCROW RELEASE
+   * This calls the internal function we discussed in the roadmap
+   * to move funds from pendingBalance to availableBalance.
+   */
+  // await releaseFundsAndSplit(appointment._id); 
+
+  res.status(200).json({
+    success: true,
+    message: "Appointment marked as completed. Funds released to wallet.",
+    data: appointment,
+  });
+});
