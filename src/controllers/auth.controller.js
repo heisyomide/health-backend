@@ -8,7 +8,7 @@ const PatientProfile = require("../models/PatientProfile");
 const PractitionerProfile = require("../models/PractitionerProfile");
 
 /* =====================================================
-   TOKEN RESPONSE
+   TOKEN RESPONSE (SINGLE SOURCE)
 ===================================================== */
 const sendTokenResponse = (user, statusCode, res) => {
   const token = getSignedJwtToken(user);
@@ -19,7 +19,12 @@ const sendTokenResponse = (user, statusCode, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: Number(process.env.JWT_COOKIE_EXPIRE) * 24 * 60 * 60 * 1000,
+      maxAge:
+        Number(process.env.JWT_COOKIE_EXPIRE || 7) *
+        24 *
+        60 *
+        60 *
+        1000,
     })
     .json({
       success: true,
@@ -95,16 +100,17 @@ exports.register = asyncHandler(async (req, res, next) => {
 });
 
 /* =====================================================
-   LOGIN
+   LOGIN (RATE-SAFE)
 ===================================================== */
 exports.login = asyncHandler(async (req, res, next) => {
-  const { email, password } = req.body;
+  const email = req.body.email?.toLowerCase();
+  const password = req.body.password;
 
   if (!email || !password) {
     return next(new ErrorResponse("Invalid credentials", 401));
   }
 
-  const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
+  const user = await User.findOne({ email }).select("+password");
 
   if (!user || !(await user.matchPassword(password))) {
     return next(new ErrorResponse("Invalid credentials", 401));
@@ -114,7 +120,7 @@ exports.login = asyncHandler(async (req, res, next) => {
 });
 
 /* =====================================================
-   GET CURRENT USER (SINGLE SOURCE OF TRUTH)
+   GET CURRENT USER
 ===================================================== */
 exports.getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id);
@@ -155,26 +161,5 @@ exports.logout = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Logged out successfully",
-  });
-});
-
-/* =====================================================
-   UPDATE PASSWORD
-===================================================== */
-exports.updatePassword = asyncHandler(async (req, res, next) => {
-  const { currentPassword, newPassword } = req.body;
-
-  const user = await User.findById(req.user.id).select("+password");
-
-  if (!(await user.matchPassword(currentPassword))) {
-    return next(new ErrorResponse("Current password is incorrect", 401));
-  }
-
-  user.password = newPassword;
-  await user.save();
-
-  res.status(200).json({
-    success: true,
-    message: "Password updated successfully",
   });
 });
