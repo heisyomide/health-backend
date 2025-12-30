@@ -12,14 +12,12 @@ const router = express.Router();
 router.use(protect);
 router.use(authorize("practitioner"));
 
-
-// The route MUST have 'protect' to populate req.user
 router.patch(
   "/onboarding",
-  protect, // <--- Add this if it was missing!
-  upload.single("license"),
+  upload.single("license"), // ✅ multer runs ONCE
   controller.onboardPractitioner
 );
+
 router.get("/dashboard", controller.getPractitionerDashboard);
 
 router
@@ -31,6 +29,7 @@ router.post("/availability", controller.updateAvailability);
 router.post("/diagnoses", controller.submitDiagnosis);
 router.post("/prescriptions", controller.issuePrescription);
 
-router.post('/confirm-service', controller.confirmServiceDone);
+// Service completion (wallet logic later)
+router.post("/confirm-service", controller.confirmServiceDone);
 
 module.exports = router;

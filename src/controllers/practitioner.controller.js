@@ -8,37 +8,42 @@ const Diagnosis = require("../models/Diagnosis");
 const Prescription = require("../models/Prescription");
 const User = require("../models/User");
 const { uploadToCloudinary } = require("../utils/cloudinary");
-
+const fs = require("fs");
 /* =====================================================
    PRACTITIONER ONBOARDING
 ===================================================== */
 // Ensure this is inside the exports.onboardPractitioner function
+
+
 exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
-  // 1. Validate File Existence
   if (!req.file) {
     return next(new ErrorResponse("Medical license document is required", 400));
   }
 
-  // 2. Find or Create Practitioner Profile
   let profile = await PractitionerProfile.findOne({ user: userId });
   if (!profile) {
     profile = new PractitionerProfile({ user: userId });
   }
 
-  // 3. Upload to Cloudinary
-  const upload = await uploadToCloudinary(
-    req.file.path,
-    "practitioner_licenses"
-  );
-
-  // 4. Safety Check: Ensure Cloudinary didn't return null
-  if (!upload || !upload.secure_url) {
-    return next(new ErrorResponse("Cloudinary upload failed. Please check server logs.", 500));
+  let uploadResult;
+  try {
+    uploadResult = await uploadToCloudinary(
+      req.file.path,
+      "practitioner_licenses"
+    );
+  } catch (err) {
+    return next(new ErrorResponse("Cloudinary upload failed", 500));
+  } finally {
+    // ✅ CRITICAL: clean temp file
+    if (req.file?.path) fs.unlinkSync(req.file.path);
   }
 
-  // 5. Map Data to Profile (Matching your frontend names)
+  if (!uploadResult?.secure_url) {
+    return next(new ErrorResponse("Invalid upload response", 500));
+  }
+
   Object.assign(profile, {
     specialization: req.body.specialization,
     licenseNumber: req.body.licenseNumber,
@@ -47,28 +52,26 @@ exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
     address: req.body.address,
     hospitalAffiliation: req.body.hospitalAffiliation,
     bio: req.body.bio,
-    licenseDocument: upload.secure_url,
+    licenseDocument: uploadResult.secure_url,
     nextOfKin: {
       name: req.body.nextOfKinName,
       phone: req.body.nextOfKinPhone,
     },
+    verificationStatus: "pending",
   });
 
-  // 6. Execute Database Updates
-  // We use Promise.all to run these at the same time for speed
   await Promise.all([
     profile.save(),
     User.findByIdAndUpdate(userId, {
       onboardingCompleted: true,
       verificationStatus: "pending",
       isVerified: false,
-    })
+    }),
   ]);
 
-  // 7. Success Response
   res.status(200).json({
     success: true,
-    message: "Onboarding submitted successfully. Awaiting admin review.",
+    message: "Onboarding submitted. Awaiting admin review.",
   });
 });
 
@@ -281,28 +284,30 @@ exports.getPractitionerDashboard = asyncHandler(async (req, res, next) => {
     },
   });
 });
-exports.confirmServiceDone = asyncHandler(async (req, res) => {
+exports.confirmServiceDone = asyncHandler(async (req, res, next) => {
   const { appointmentId, note } = req.body;
 
   const appointment = await Appointment.findById(appointmentId);
 
   if (!appointment) {
-    throw new ErrorResponse('Appointment not found', 404);
+    return next(new ErrorResponse("Appointment not found", 404));
   }
 
   if (appointment.practitioner.toString() !== req.user.id) {
-    throw new ErrorResponse('Not authorized', 403);
+    return next(new ErrorResponse("Not authorized", 403));
   }
 
-  if (appointment.status !== 'PAID') {
-    throw new ErrorResponse('Invalid appointment state', 400);
+  if (appointment.status !== "PAID") {
+    return next(new ErrorResponse("Invalid appointment state", 400));
   }
 
-  appointment.status = 'PRACTITIONER_CONFIRMED';
+  appointment.status = "PRACTITIONER_CONFIRMED";
   appointment.practitionerConfirmedAt = new Date();
-  appointment.completionEvidence.practitionerNote = note;
+  appointment.completionEvidence = {
+    practitionerNote: note,
+  };
 
   await appointment.save();
 
-  res.json({ success: true });
+  res.status(200).json({ success: true });
 });
