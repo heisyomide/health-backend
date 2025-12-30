@@ -163,3 +163,60 @@ exports.logout = asyncHandler(async (req, res) => {
     message: "Logged out successfully",
   });
 });
+/* =====================================================
+   UPDATE PASSWORD
+===================================================== */
+exports.updatePassword = asyncHandler(async (req, res, next) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  // 1️⃣ Validate input
+  if (!currentPassword || !newPassword) {
+    return next(new ErrorResponse("Current and new password are required", 400));
+  }
+
+  if (newPassword.length < 8) {
+    return next(
+      new ErrorResponse("New password must be at least 8 characters", 400)
+    );
+  }
+
+  if (confirmPassword && newPassword !== confirmPassword) {
+    return next(new ErrorResponse("Passwords do not match", 400));
+  }
+
+  // 2️⃣ Fetch user with password
+  const user = await User.findById(req.user.id).select("+password");
+
+  if (!user) {
+    return next(new ErrorResponse("User not found", 404));
+  }
+
+  // 3️⃣ Verify current password
+  const isMatch = await user.matchPassword(currentPassword);
+  if (!isMatch) {
+    return next(new ErrorResponse("Current password is incorrect", 401));
+  }
+
+  // 4️⃣ Prevent password reuse
+  const isSamePassword = await user.matchPassword(newPassword);
+  if (isSamePassword) {
+    return next(
+      new ErrorResponse("New password must be different from old password", 400)
+    );
+  }
+
+  // 5️⃣ Update password
+  user.password = newPassword;
+  await user.save();
+
+  // 6️⃣ OPTIONAL: Force token refresh (recommended)
+  res.cookie("token", "none", {
+    httpOnly: true,
+    expires: new Date(Date.now() + 10),
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Password updated successfully. Please login again.",
+  });
+});
