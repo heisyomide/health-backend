@@ -73,6 +73,7 @@ exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
     success: true,
     message: "Onboarding submitted. Awaiting admin review.",
   });
+  console.log(req.file);
 });
 
  
