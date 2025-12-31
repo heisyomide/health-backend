@@ -32,4 +32,6 @@ router.post("/prescriptions", controller.issuePrescription);
 // Service completion (wallet logic later)
 router.post("/confirm-service", controller.confirmServiceDone);
 
+router.get('/cloudinary-signature', protect, authorize('practitioner'), getUploadSignature);
+
 module.exports = router;

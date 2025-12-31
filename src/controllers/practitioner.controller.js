@@ -17,65 +17,36 @@ const fs = require("fs");
 
 exports.onboardPractitioner = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
+  const { licenseDocument, specialization, licenseNumber, ninNumber, bio } = req.body;
 
-  if (!req.file) {
-    return next(new ErrorResponse("Medical license document is required", 400));
+  if (!licenseDocument) {
+    return next(new ErrorResponse("License URL is required", 400));
   }
 
-  let profile = await PractitionerProfile.findOne({ user: userId });
-  if (!profile) {
-    profile = new PractitionerProfile({ user: userId });
-  }
-
-  let uploadResult;
-  try {
-    uploadResult = await uploadToCloudinary(
-      req.file.path,
-      "practitioner_licenses"
-    );
-  } catch (err) {
-    return next(new ErrorResponse("Cloudinary upload failed", 500));
-  } finally {
-    // ✅ CRITICAL: clean temp file
-    if (req.file?.path) fs.unlinkSync(req.file.path);
-  }
-
-  if (!uploadResult?.secure_url) {
-    return next(new ErrorResponse("Invalid upload response", 500));
-  }
-
-  Object.assign(profile, {
-    specialization: req.body.specialization,
-    licenseNumber: req.body.licenseNumber,
-    ninNumber: req.body.ninNumber,
-    phoneNumber: req.body.phoneNumber,
-    address: req.body.address,
-    hospitalAffiliation: req.body.hospitalAffiliation,
-    bio: req.body.bio,
-    licenseDocument: uploadResult.secure_url,
-    nextOfKin: {
-      name: req.body.nextOfKinName,
-      phone: req.body.nextOfKinPhone,
+  // Update or Create profile
+  const profile = await PractitionerProfile.findOneAndUpdate(
+    { user: userId },
+    { 
+      ...req.body, // Contains specialization, licenseNumber, etc.
+      licenseDocument, // The Cloudinary URL string
+      nextOfKin: {
+        name: req.body.nextOfKinName,
+        phone: req.body.nextOfKinPhone,
+      }
     },
+    { new: true, upsert: true }
+  );
+
+  await User.findByIdAndUpdate(userId, {
+    onboardingCompleted: true,
     verificationStatus: "pending",
   });
 
-  await Promise.all([
-    profile.save(),
-    User.findByIdAndUpdate(userId, {
-      onboardingCompleted: true,
-      verificationStatus: "pending",
-      isVerified: false,
-    }),
-  ]);
-
   res.status(200).json({
     success: true,
-    message: "Onboarding submitted. Awaiting admin review.",
+    message: "Onboarding successful. No more SSL errors!"
   });
-  console.log(req.file);
 });
-
  
 
 // <--- Make sure this bracket closes the function properly
@@ -311,4 +282,30 @@ exports.confirmServiceDone = asyncHandler(async (req, res, next) => {
   await appointment.save();
 
   res.status(200).json({ success: true });
+});
+// controllers/cloudinary.controller.js
+const cloudinary = require('cloudinary').v2;
+const asyncHandler = require('../utils/asyncHandler');
+
+exports.getCloudinarySignature = asyncHandler(async (req, res) => {
+  const timestamp = Math.round(new Date().getTime() / 1000);
+  
+  // This signs the request so Cloudinary knows it's coming from YOUR app
+  const signature = cloudinary.utils.api_sign_request(
+    {
+      timestamp,
+      folder: 'practitioner_licenses',
+    },
+    process.env.CLOUDINARY_API_SECRET
+  );
+
+  res.status(200).json({
+    success: true,
+    data: {
+      signature,
+      timestamp,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+    }
+  });
 });
