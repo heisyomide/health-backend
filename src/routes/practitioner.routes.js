@@ -2,7 +2,9 @@ const express = require("express");
 const { protect, authorize } = require("../middlewares/auth.middleware");
 const upload = require("../middlewares/multer");
 const controller = require("../controllers/practitioner.controller");
-
+const {
+  getCloudinarySignature,
+} = require('../controllers/cloudinary.controller');
 const router = express.Router();
 
 /* =====================================================
@@ -32,6 +34,10 @@ router.post("/prescriptions", controller.issuePrescription);
 // Service completion (wallet logic later)
 router.post("/confirm-service", controller.confirmServiceDone);
 
-router.get('/cloudinary-signature', protect, authorize('practitioner'), getUploadSignature);
-
+router.get(
+  '/cloudinary-signature',
+  protect,
+  authorize('practitioner'),
+  getCloudinarySignature
+);
 module.exports = router;

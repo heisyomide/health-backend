@@ -1,6 +1,5 @@
 const asyncHandler = require("../utils/asyncHandler");
 const ErrorResponse = require("../utils/errorResponse");
-
 const PractitionerProfile = require("../models/PractitionerProfile");
 const Availability = require("../models/Availability");
 const Appointment = require("../models/Appointment");
@@ -282,30 +281,4 @@ exports.confirmServiceDone = asyncHandler(async (req, res, next) => {
   await appointment.save();
 
   res.status(200).json({ success: true });
-});
-// controllers/cloudinary.controller.js
-const cloudinary = require('cloudinary').v2;
-const asyncHandler = require('../utils/asyncHandler');
-
-exports.getCloudinarySignature = asyncHandler(async (req, res) => {
-  const timestamp = Math.round(new Date().getTime() / 1000);
-  
-  // This signs the request so Cloudinary knows it's coming from YOUR app
-  const signature = cloudinary.utils.api_sign_request(
-    {
-      timestamp,
-      folder: 'practitioner_licenses',
-    },
-    process.env.CLOUDINARY_API_SECRET
-  );
-
-  res.status(200).json({
-    success: true,
-    data: {
-      signature,
-      timestamp,
-      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-      apiKey: process.env.CLOUDINARY_API_KEY,
-    }
-  });
 });
