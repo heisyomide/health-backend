@@ -21,7 +21,7 @@ exports.getAdminStats = asyncHandler(async (req, res) => {
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ role: 'practitioner', isVerified: true }),
-    User.countDocuments({ role: 'practitioner', verificationStatus: 'pending' }),
+    PractitionerProfile.countDocuments({ verificationStatus: 'pending' }),
     Transaction.aggregate([
       { $match: { status: 'success' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
@@ -60,55 +60,59 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
+   PENDING PRACTITIONER REVIEWS (ADMIN KYC QUEUE)
+===================================================== */
+exports.getPendingReviews = asyncHandler(async (req, res) => {
+  const pending = await PractitionerProfile.find({
+    verificationStatus: 'pending'
+  })
+    .populate('user', 'firstName lastName email')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: pending
+  });
+});
+
+/* =====================================================
    PRACTITIONER VERIFICATION
 ===================================================== */
-// @route PUT /api/v1/admin/practitioners/:userId/verify
+// PUT /api/v1/admin/practitioners/:userId/verify
 // body: { action: 'approve' | 'reject' }
 exports.verifyPractitioner = asyncHandler(async (req, res, next) => {
   const { action } = req.body;
+  const { userId } = req.params;
 
   if (!['approve', 'reject'].includes(action)) {
     return next(new ErrorResponse('Invalid verification action', 400));
   }
 
-  const user = await User.findById(req.params.userId);
-  if (!user) return next(new ErrorResponse('User not found', 404));
+  const user = await User.findById(userId);
+  if (!user || user.role !== 'practitioner') {
+    return next(new ErrorResponse('Practitioner not found', 404));
+  }
 
-  if (user.role !== 'practitioner') {
-    return next(new ErrorResponse('Only practitioners can be verified', 400));
+  const profile = await PractitionerProfile.findOne({ user: userId });
+  if (!profile) {
+    return next(new ErrorResponse('Practitioner profile not found', 404));
   }
 
   const isApproved = action === 'approve';
 
+  // Update USER
   user.isVerified = isApproved;
   user.verificationStatus = isApproved ? 'approved' : 'rejected';
   await user.save();
 
-  res.status(200).json({
-    success: true,
-    message: `Practitioner ${user.verificationStatus}`,
-    data: {
-      userId: user._id,
-      isVerified: user.isVerified,
-      verificationStatus: user.verificationStatus
-    }
-  });
-});
-
-/* =====================================================
-   PENDING PRACTITIONER REVIEWS
-===================================================== */
-exports.getPendingReviews = asyncHandler(async (req, res) => {
-  const pending = await User.find({
-    role: 'practitioner',
-    verificationStatus: 'pending'
-  })
-    .select('firstName lastName email createdAt')
-    .lean();
+  // Update PRACTITIONER PROFILE
+  profile.verificationStatus = isApproved ? 'approved' : 'rejected';
+  profile.verifiedAt = isApproved ? Date.now() : null;
+  await profile.save();
 
   res.status(200).json({
     success: true,
-    data: pending
+    message: `Practitioner ${profile.verificationStatus}`
   });
 });
 
