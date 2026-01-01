@@ -21,11 +21,18 @@ exports.getAdminStats = asyncHandler(async (req, res) => {
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ role: 'practitioner', isVerified: true }),
-    PractitionerProfile.countDocuments({ verificationStatus: 'pending' }),
+    User.countDocuments({ role: 'practitioner', verificationStatus: 'pending' }),
+
     Transaction.aggregate([
-      { $match: { status: 'success' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
+      { $match: { status: 'released' } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$platformFee' }
+        }
+      }
     ]),
+
     Appointment.countDocuments({
       createdAt: {
         $gte: new Date(new Date().setHours(0, 0, 0, 0))
@@ -44,7 +51,6 @@ exports.getAdminStats = asyncHandler(async (req, res) => {
     }
   });
 });
-
 /* =====================================================
    USERS
 ===================================================== */
